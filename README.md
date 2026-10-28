@@ -13,7 +13,7 @@ Système d'apprentissage par renforcement multi-agents pour les échecs : chaque
   - contrainte dure ("bouclier") qui écarte tout coup permettant un mat au coup suivant ;
   - relaxation lagrangienne qui limite les échecs subis (budget de danger d, prix $\lambda$ appris).
 
-Le détail (formulation, justification du façonnage, contraintes, points ouverts) est dans [`docs/specification.md`](docs/specification.md).
+Le détail (formulation, justification du façonnage, contraintes, points ouverts) est dans [`docs/specification.md`](docs/specifications.md).
 
 ## Contenu du dépôt
 
