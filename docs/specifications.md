@@ -1,6 +1,6 @@
 # Échecs multi-agents : spécification
 
-Oct 18, 2026 - @Chloé
+18 Oct, 2026 - @Chloé
 
 ## 1. Environnement
 

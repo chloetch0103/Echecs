@@ -1,3 +1,6 @@
 checkpoints/
 runs/
 .env
+.idea/
+.venv/
+__pycache__/
