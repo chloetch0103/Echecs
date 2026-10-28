@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "echecs_multi_agents"
+version = "0.1.0"
+description = "Système d'apprentissage par renforcement multi-agent pour les échecs."
+authors = [
+    {name = "Chloé", email = "chloetchienang@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "chess>=1.11",
+    "numpy",
+    "torch",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+# [project.scripts]
+# entrainer = "echecs_ma.cli:entrainer"
+
+[tool.ruff]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+## avant de lancer pip install -e ".[dev]" il faut activer l'environnement virtuel avant
+## Sinon le projet sera enregistré dans le python global
+## .venv\Scripts\activate
