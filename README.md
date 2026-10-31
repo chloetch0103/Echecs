@@ -2,7 +2,7 @@
 
 Système d'apprentissage par renforcement multi-agents pour les échecs : chaque pièce est un agent autonome, et toutes coopèrent autour d'une récompense commune. Les agents s'entraîneront contre Stockfish, dont la force augmentera progressivement.
 
-> **Statut : en phase de conception.** Le dépôt contient pour l'instant la spécification et les fichiers de configuration. L'implémentation est la prochaine étape.
+> **Statut : implémentation en cours.** L'environnement de jeu (récompense, coût de danger, fins de partie) est en place et testé. Les agents et la boucle d'entraînement sont les prochaines étapes.
 
 ## Approche
 
@@ -10,26 +10,56 @@ Système d'apprentissage par renforcement multi-agents pour les échecs : chaque
 - **Coordination** : chaque agent propose ses coups, un arbitre central choisit le meilleur.
 - **Récompense** : résultat de la partie (+1 / 0 / −1), avec un façonnage par potentiel fondé sur l'évaluation de Stockfish.
 - **Sécurité du Roi** :
-  - contrainte dure ("bouclier") qui écarte tout coup permettant un mat au coup suivant ;
-  - relaxation lagrangienne qui limite les échecs subis (budget de danger d, prix $\lambda$ appris).
+  - relaxation lagrangienne qui limite les échecs subis (budget de danger d, prix $\lambda$ appris) ;
+  - contrainte dure ("bouclier") qui écarte tout coup permettant un mat au coup suivant *(prévue)*.
 
 Le détail (formulation, justification du façonnage, contraintes, points ouverts) est dans [`docs/specifications.md`](docs/specifications.md).
+
+## Installation
+
+Prérequis : Python 3.14 et [Stockfish](https://stockfishchess.org/download/).
+
+```bash
+git clone https://github.com/chloetch0103/Echecs.git
+cd echecs_multi_agents
+python -m venv .venv
+.venv\Scripts\activate          # Linux / macOS : source .venv/bin/activate
+python -m pip install -e ".[dev]"
+```
+
+Indiquer ensuite le chemin de l'exécutable Stockfish, soit dans `configs/base.yaml` (`stockfish.chemin`), soit dans la variable d'environnement `STOCKFISH_PATH` :
+
+```bash
+setx STOCKFISH_PATH "C:\chemin\vers\stockfish.exe"      # Windows
+export STOCKFISH_PATH=/chemin/vers/stockfish            # Linux / macOS
+```
+
+## Tests
+
+```bash
+python -m pytest tests/
+```
+
+Les tests de l'environnement n'ont pas besoin de Stockfish : l'adversaire et l'évaluation sont remplacés par des versions scriptées, ce qui rend chaque résultat prévisible (mat, pat, promotion, façonnage, échec subi).
 
 ## Contenu du dépôt
 
 ```
-configs/   # fichiers de configuration
-docs/      # spécification
-src/       # squelette des modules à implémenter
-pyproject.toml  # Métadonnées et dépendances du projet (pas encore complet)
+configs/          # fichiers de configuration
+docs/             # spécification
+src/echecs_ma/
+  env/            # environnement de jeu, adversaire et évaluateur Stockfish
+tests/            # tests unitaires
+pyproject.toml    # métadonnées et dépendances du projet
 ```
 
-## Prochaines étapes
+## Avancement
 
-1. Environnement (python-chess, interface Stockfish, potentiel $\Phi$).
-2. Agents, arbitre et relaxation lagrangienne.
-3. Bouclier anti-mat.
-4. Boucle d'entraînement et curriculum.
+- [x] Environnement : coups légaux par agent, récompense façonnée, coût de danger, fins de partie.
+- [ ] Valeurs des pièces et potentiel matériel de repli.
+- [ ] Agents, arbitre et relaxation lagrangienne.
+- [ ] Bouclier anti-mat.
+- [ ] Boucle d'entraînement et curriculum.
 
 ## Références
 
