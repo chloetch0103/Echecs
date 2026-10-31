@@ -1,0 +1,8 @@
+chess>=1.11.2
+numpy
+torch
+pyyaml
+
+[dev]
+pytest
+ruff

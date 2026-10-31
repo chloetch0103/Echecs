@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/echecs_ma/__init__.py
+src/echecs_ma/agents/__init__.py
+src/echecs_ma/contrainte/__init__.py
+src/echecs_ma/entrainement/__init__.py
+src/echecs_ma/env/__init__.py
+src/echecs_ma/env/adversaire.py
+src/echecs_ma/env/environnement.py
+src/echecs_ma/env/valeurs.py
+src/echecs_ma/utils/__init__.py
+src/echecs_multi_agents.egg-info/PKG-INFO
+src/echecs_multi_agents.egg-info/SOURCES.txt
+src/echecs_multi_agents.egg-info/dependency_links.txt
+src/echecs_multi_agents.egg-info/requires.txt
+src/echecs_multi_agents.egg-info/top_level.txt
+tests/test_environnement.py
