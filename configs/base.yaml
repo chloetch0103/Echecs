@@ -16,10 +16,10 @@ recompense:
   potentiel: stockfish          # "stockfish" (évaluation VND) ou "materiel" (bilan matériel)
 
 stockfish:
-  chemin: C:\Users\chloe\Downloads\echecs\stockfish\stockfish-windows-x86-64-universal.exe  # chemin vers l'exécutable ; null = lu dans la variable STOCKFISH_PATH
-  niveau_initial: 0                                                                         # Skill Level de l'adversaire, de 0 à 20
-  temps_coup: 0.05                                                                          # secondes de réflexion de l'adversaire par coup - à ajuster
-  temps_analyse: 0.02                                                                       # secondes d'analyse pour calculer le potentiel phi - à ajuster
+  chemin: null                   # chemin vers l'exécutable ; null = lu dans la variable STOCKFISH_PATH
+  niveau_initial: 0              # Skill Level de l'adversaire, de 0 à 20
+  temps_coup: 0.05               # secondes de réflexion de l'adversaire par coup - à ajuster
+  temps_analyse: 0.02            # secondes d'analyse pour calculer le potentiel phi - à ajuster
   curriculum:
     actif: true
     pas_niveau: 1               # de combien le niveau monte à chaque palier
