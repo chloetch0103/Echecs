@@ -17,7 +17,3 @@ def bilan_materiel(echiquier: chess.Board, couleur: chess.Color) -> float:
     )
 
 
-if __name__ == "__main__":
-    print(bilan_materiel(chess.Board(), chess.WHITE))                                  # 0
-    print(bilan_materiel(chess.Board("rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"),
-                         chess.WHITE))                                                  # 9 : les Noirs n'ont plus de dame
