@@ -2,7 +2,7 @@
 
 Système d'apprentissage par renforcement multi-agents pour les échecs : chaque pièce est un agent autonome, et toutes coopèrent autour d'une récompense commune. Les agents s'entraîneront contre Stockfish, dont la force augmentera progressivement.
 
-> **Statut : implémentation en cours.** L'environnement de jeu (récompense, coût de danger, fins de partie) et les éléments de calcul du bilan matériel sont en place et testés. Les agents et la boucle d'entraînement sont les prochaines étapes.
+> **Statut : implémentation en cours.** L'environnement de jeu (récompense, coût de danger, fins de partie), les éléments de calcul du bilan matériel sont en place et testés. Le dispositif d'encodage avant l'entrée dans les réseaux a également déjà été mis en place. Les agents et la boucle d'entraînement sont les prochaines étapes.
 
 ## Approche
 
@@ -48,7 +48,7 @@ Les tests de l'environnement n'ont pas besoin de Stockfish : l'adversaire et l'�
 configs/          # fichiers de configuration
 docs/             # spécification
 src/echecs_ma/
-  env/            # environnement de jeu, adversaire et évaluateur Stockfish, valeurs des pièces et fonction de calcul du bilan matériel
+  env/            # environnement de jeu, adversaire et évaluateur Stockfish, valeurs des pièces et fonction de calcul du bilan matériel, encodage
 tests/            # tests unitaires
 pyproject.toml    # métadonnées et dépendances du projet
 ```
@@ -57,6 +57,7 @@ pyproject.toml    # métadonnées et dépendances du projet
 
 - [x] Environnement : coups légaux par agent, récompense façonnée, coût de danger, fins de partie.
 - [x] Valeurs des pièces et potentiel matériel de repli.
+- [ ] Encodage des données pour les réseaux de neurones.
 - [ ] Agents, arbitre et relaxation lagrangienne.
 - [ ] Bouclier anti-mat.
 - [ ] Boucle d'entraînement et curriculum.
