@@ -57,18 +57,18 @@ def test_coups_legaux_position_initiale():
     env.compute_coups_legaux_par_agent()
     agents = env.coups_legaux_par_agent
 
-    assert len(agents) == 16                                  # une clé par pièce blanche
-    assert len(agents[(chess.PAWN, chess.E2)]) == 2           # e3 et e4
-    assert len(agents[(chess.KNIGHT, chess.G1)]) == 2         # f3 et h3
-    assert agents[(chess.ROOK, chess.A1)] == []               # bloquée
-    assert agents[(chess.KING, chess.E1)] == []
-    assert sum(len(c) for c in agents.values()) == 20         # 20 coups légaux au départ
+    assert len(agents) == 6                                  # une clé par pièce blanche
+    assert len(agents[chess.PAWN][chess.E2]) == 2           # e3 et e4
+    assert len(agents[chess.KNIGHT][chess.G1]) == 2         # f3 et h3
+    assert agents[chess.ROOK][chess.A1] == []               # bloquée
+    assert agents[chess.KING][chess.E1] == []
+    assert sum(len(c) for val in agents.values() for _, c in val.items()) == 20         # 20 coups légaux au départ
 
 
 def test_promotion_donne_quatre_coups_au_soldat():
     env = creer_env(fen="8/P6k/8/8/8/8/8/K7 w - - 0 1")
     env.compute_coups_legaux_par_agent()
-    coups_soldat = env.coups_legaux_par_agent[(chess.PAWN, chess.A7)]
+    coups_soldat = env.coups_legaux_par_agent[chess.PAWN][chess.A7]
 
     promotions = {c.promotion for c in coups_soldat}
     assert promotions == {chess.QUEEN, chess.ROOK, chess.BISHOP, chess.KNIGHT}
@@ -79,8 +79,10 @@ def test_soldat_promu_change_de_type():
     env.step(coup("a7a8q"))
     env.compute_coups_legaux_par_agent()
 
-    assert (chess.QUEEN, chess.A8) in env.coups_legaux_par_agent
-    assert (chess.PAWN, chess.A7) not in env.coups_legaux_par_agent
+    assert chess.QUEEN in env.coups_legaux_par_agent
+    assert chess.A8 in env.coups_legaux_par_agent[chess.QUEEN]
+    assert chess.PAWN in env.coups_legaux_par_agent
+    assert chess.A7 not in env.coups_legaux_par_agent[chess.PAWN]
 
 
 # --- Fins de partie ----------------------------------------------------------

@@ -18,17 +18,18 @@ class Environnement:
         self.gamma = gamma
 
     def compute_coups_legaux_par_agent(self):
-        # 1. Clés du dictionnaire tuple(int, int) <=> (type_piece, position)
+        # 1. Premier niveau du dictionnaire {type pièce : {case de départ : ...}}
         self.coups_legaux_par_agent = dict()
         for type_piece in chess.PIECE_TYPES:
+            self.coups_legaux_par_agent[type_piece] = dict()
             for square in self.echiquier.pieces(type_piece, self.couleur):
                 position = square
-                self.coups_legaux_par_agent[(type_piece, position)] = list()
+                self.coups_legaux_par_agent[type_piece][position] = list()
 
-        # 2. Valeurs du dictionnaire (mouvements possibles)
+        # 2. Second niveau du dictionnaire {type pièce : {case de départ : liste des positions d'arrivée possible}}
         for coup in self.echiquier.legal_moves:
             type_piece = self.echiquier.piece_at(coup.from_square).piece_type
-            self.coups_legaux_par_agent[(type_piece, coup.from_square)].append(coup)
+            self.coups_legaux_par_agent[type_piece][coup.from_square].append(coup)
 
     def reset(self, fen=None):
         self.echiquier = chess.Board(fen) if fen else chess.Board()

@@ -7,13 +7,27 @@ Encodage de l'échiquier pour le réseau de neurones, du point de vue de l'algor
   13-16 : droits de roque (nous petit/grand, adversaire petit/grand)
   17 : compteur règle des 50 coups (normalisé)
   18 : 1 partout si la position est déjà apparue au moins une fois avant, sinon 0
-  19 : 1 partout si c’est sa 3e apparition (ou plus), sinon 0
-"""
+  19 : 1 pour indiquer au réseau la pièce concernée
 
+Encodage de la sortie des réseaux :
+    - Les réseaux doivent estimer 88 Q_R et Q_C (64 pour chaque case de l'échiquier + promotion en reine
+    et 8*3 pour les sous promotions (on ne regarde que les colonnes, car les promotions se font toujours
+    sur la même ligne). On doit donc construire un vecteur masque de taille 88 pour ne garder que les
+    coups valides.
+"""
 import numpy as np
 import chess
 
 NB_PLANS = 20
+NB_SORTIES = 88
+NB_CASES = 64
+NB_COLS = 8
+
+TYPE_PIECE_TO_INDICE: dict[chess.PieceType, int] = {
+    chess.BISHOP: 0,
+    chess.KNIGHT: 1,
+    chess.ROOK: 2,
+}
 
 
 def case_vers_indices(square: int, couleur_algo: bool) -> tuple[int, int]:
@@ -36,7 +50,7 @@ def encoder_piece(echiquier: chess.Board, couleur: bool, type_piece: int,
     return plan
 
 
-def encoder_echiquier(echiquier: chess.Board, couleur: bool) -> np.ndarray:
+def encoder_echiquier(echiquier: chess.Board, couleur: bool, pos_depart) -> np.ndarray:
     plans = np.zeros((NB_PLANS, 8, 8), dtype=np.float32)
     couleur_adv = not couleur
 
@@ -63,7 +77,45 @@ def encoder_echiquier(echiquier: chess.Board, couleur: bool) -> np.ndarray:
 
     # 5. Répétition de positions
     plans[18] = float(echiquier.is_repetition(2))
-    plans[19] = float(echiquier.is_repetition(3))
+
+    # 6. Position de départ
+    i, j = case_vers_indices(pos_depart, couleur)
+    plan = np.zeros((8, 8), dtype=np.float32)
+    plan[i, j] = 1.0
+    plans[19] = plan
 
     return plans
 
+
+def encoder_masque_coups_legaux(echiquier: chess.Board, couleur: bool, pos_piece: int) -> np.ndarray:
+    """
+    Met des True partout où l'agent peut aller
+    :param echiquier:
+    :param couleur: En tant que qui on joue
+    :param pos_piece: position actuelle de la pièce
+    :return: masque
+    """
+    masque = np.full(NB_SORTIES, False, dtype=bool)
+    # On vérifie si c'est bien à l'algorithme de jouer
+    if echiquier.turn != couleur:
+        raise ValueError("Ce n'est pas à l'algorithme de jouer")
+
+    # On vérifie que le bon pion se trouve bien à la bonne position
+    p = echiquier.piece_at(pos_piece)
+    if p is None or p.color != couleur:
+        raise ValueError(f"Aucune des pièces de l'algorithme ne se trouve à l'emplacement {pos_piece}")
+
+    for coup in echiquier.legal_moves:
+        if coup.from_square == pos_piece:
+            i, j = case_vers_indices(coup.to_square, couleur)
+            pos_arrivee = 8*i + j
+            # 1. Gestion des coups classiques + promotions en reine (0-63)
+            masque[pos_arrivee]= True
+
+            # 2. Gestion des sous promotions (64-87)
+            promotion = coup.promotion
+            if not promotion or promotion == chess.QUEEN:
+                continue
+            masque[NB_CASES + NB_COLS*TYPE_PIECE_TO_INDICE[promotion] + j] = True
+
+    return masque
