@@ -5,7 +5,7 @@ Encodage de l'échiquier pour le réseau de neurones, du point de vue de l'algor
   6-11 : pièces adverses
   12 : case de prise en passant
   13-16 : droits de roque (nous petit/grand, adversaire petit/grand)
-  17 : compteur règle des 50 coups (normalisé)
+  17 : compteur règle des 50 coups
   18 : 1 partout si la position est déjà apparue au moins une fois avant, sinon 0
   19 : 1 pour indiquer au réseau la pièce concernée
 
@@ -43,7 +43,7 @@ def case_vers_indices(square: int, couleur_algo: bool) -> tuple[int, int]:
 
 def encoder_piece(echiquier: chess.Board, couleur: bool, type_piece: int,
                   couleur_algo: bool) -> np.ndarray:
-    plan = np.zeros((8, 8), dtype=np.float32)
+    plan = np.zeros((8, 8), dtype=np.uint8)
     for square in echiquier.pieces(type_piece, couleur):
         i, j = case_vers_indices(square, couleur_algo)
         plan[i, j] = 1.0
@@ -51,7 +51,7 @@ def encoder_piece(echiquier: chess.Board, couleur: bool, type_piece: int,
 
 
 def encoder_echiquier(echiquier: chess.Board, couleur: bool, pos_depart) -> np.ndarray:
-    plans = np.zeros((NB_PLANS, 8, 8), dtype=np.float32)
+    plans = np.zeros((NB_PLANS, 8, 8), dtype=np.uint8)
     couleur_adv = not couleur
 
     # 1. Pièces (12 plans)
@@ -64,7 +64,7 @@ def encoder_echiquier(echiquier: chess.Board, couleur: bool, pos_depart) -> np.n
     # 2. Prise en passant (1 sur la case cible, seulement si la prise est légale)
     if echiquier.has_legal_en_passant():
         i, j = case_vers_indices(echiquier.ep_square, couleur)
-        plans[12, i, j] = 1.0
+        plans[12, i, j] = 1
 
     # 3. Droits de roque (plans constants)
     plans[13] = float(echiquier.has_kingside_castling_rights(couleur))
@@ -73,29 +73,31 @@ def encoder_echiquier(echiquier: chess.Board, couleur: bool, pos_depart) -> np.n
     plans[16] = float(echiquier.has_queenside_castling_rights(couleur_adv))
 
     # 4. Règle des 50 coups (plan constant normalisé (100 demi-coups = nulle))
-    plans[17] = min(echiquier.halfmove_clock, 100) / 100.0
+    plans[17] = min(echiquier.halfmove_clock, 100)
 
     # 5. Répétition de positions
-    plans[18] = float(echiquier.is_repetition(2))
+    plans[18] = np.int8(echiquier.is_repetition(2))
 
     # 6. Position de départ
     i, j = case_vers_indices(pos_depart, couleur)
     plan = np.zeros((8, 8), dtype=np.float32)
-    plan[i, j] = 1.0
+    plan[i, j] = 1
     plans[19] = plan
 
     return plans
 
 
-def encoder_masque_coups_legaux(echiquier: chess.Board, couleur: bool, pos_piece: int) -> np.ndarray:
+def encoder_masque_coups_legaux(echiquier: chess.Board, couleur: bool, pos_piece: int) -> tuple[np.ndarray, dict]:
     """
-    Met des True partout où l'agent peut aller
+    Met des True partout où l'agent peut aller. Construit également un dictionnaire permettant de passer des indices du
+    masque aux coups python-chess
     :param echiquier:
     :param couleur: En tant que qui on joue
     :param pos_piece: position actuelle de la pièce
-    :return: masque
+    :return: masque, dictionnaire indice ==> coups
     """
     masque = np.full(NB_SORTIES, False, dtype=bool)
+    indice_to_coups = dict()
     # On vérifie si c'est bien à l'algorithme de jouer
     if echiquier.turn != couleur:
         raise ValueError("Ce n'est pas à l'algorithme de jouer")
@@ -115,7 +117,10 @@ def encoder_masque_coups_legaux(echiquier: chess.Board, couleur: bool, pos_piece
             # 2. Gestion des sous promotions (64-87)
             promotion = coup.promotion
             if not promotion or promotion == chess.QUEEN:
+                indice_to_coups[pos_arrivee] = coup
                 continue
-            masque[NB_CASES + NB_COLS*TYPE_PIECE_TO_INDICE[promotion] + j] = True
+            indice = NB_CASES + NB_COLS*TYPE_PIECE_TO_INDICE[promotion] + j
+            masque[indice] = True
+            indice_to_coups[indice] = coup
 
-    return masque
+    return masque, indice_to_coups

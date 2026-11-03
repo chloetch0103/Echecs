@@ -14,7 +14,14 @@ PRISE_EN_PASSANT, ROQUES, REGLE_50, REPETITION, PIECE_CONCERNEE = 12, slice(13, 
 
 
 def masque(fen, case, couleur=chess.WHITE):
-    return encoder_masque_coups_legaux(chess.Board(fen), couleur, case)
+    m, _ = encoder_masque_coups_legaux(chess.Board(fen), couleur, case)
+    return m
+
+
+def coups(fen, case, couleur=chess.WHITE):
+    """Le dictionnaire indice -> coup, en notation UCI pour des tests lisibles."""
+    _, d = encoder_masque_coups_legaux(chess.Board(fen), couleur, case)
+    return {k: c.uci() for k, c in d.items()}
 
 
 # =============================================================================
@@ -24,7 +31,7 @@ def masque(fen, case, couleur=chess.WHITE):
 def test_forme_et_type():
     plans = encoder_echiquier(chess.Board(), chess.WHITE, chess.E2)
     assert plans.shape == (NB_PLANS, 8, 8)
-    assert plans.dtype == np.float32
+    assert plans.dtype == np.uint8
 
 
 def test_pieces_position_initiale():
@@ -83,7 +90,7 @@ def test_droits_de_roque_vus_des_noirs():
     assert [plan[0, 0] for plan in roques] == [0, 1, 1, 0]
 
 
-@pytest.mark.parametrize("demi_coups, attendu", [(0, 0.0), (50, 0.5), (100, 1.0), (130, 1.0)])
+@pytest.mark.parametrize("demi_coups, attendu", [(0, 0), (50, 50), (100, 100), (130, 100)])
 def test_regle_des_50_coups(demi_coups, attendu):
     echiquier = chess.Board(f"4k3/8/8/8/8/8/8/4K2R w - - {demi_coups} 80")
     plans = encoder_echiquier(echiquier, chess.WHITE, chess.E1)
@@ -183,14 +190,68 @@ def test_masque_pas_notre_trait():
         masque(DEPART, chess.E7, chess.BLACK)                 # c'est aux Blancs de jouer
 
 
-@pytest.mark.parametrize("fen", [
+# =============================================================================
+# Dictionnaire indice -> coup (décodage)
+# =============================================================================
+
+def test_coups_soldat_au_depart():
+    assert coups(DEPART, chess.E2) == {20: "e2e3", 28: "e2e4"}
+
+
+def test_coups_piece_bloquee_dictionnaire_vide():
+    assert coups(DEPART, chess.A1) == {}
+
+
+def test_coups_miroir():
+    # Même indices pour le soldat e2 des Blancs et le soldat e7 des Noirs
+    noirs = coups("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1", chess.E7, chess.BLACK)
+    assert noirs == {20: "e7e6", 28: "e7e5"}
+
+
+def test_coups_promotion_en_dame_garde_l_indice_de_la_case():
+    # Le bug du dictionnaire écrasé : l'indice 56 doit rester la promotion en DAME
+    d = coups("8/P6k/8/8/8/8/8/K7 w - - 0 1", chess.A7)
+    assert d[56] == "a7a8q"
+
+
+def test_coups_sous_promotions():
+    # Les trois sous-promotions ont chacune leur indice, dans la colonne a (j = 0)
+    d = coups("8/P6k/8/8/8/8/8/K7 w - - 0 1", chess.A7)
+    assert d == {56: "a7a8q", 64: "a7a8b", 72: "a7a8n", 80: "a7a8r"}
+
+
+def test_coups_sous_promotions_des_noirs():
+    d = coups("k7/8/8/8/8/8/p7/7K b - - 0 1", chess.A2, chess.BLACK)
+    assert d == {56: "a2a1q", 64: "a2a1b", 72: "a2a1n", 80: "a2a1r"}
+
+
+def test_coups_promotions_avec_prise():
+    # Soldat en b7 : b8 (colonne 1) et prise en a8 (colonne 0), chacune avec 4 pièces
+    d = coups("r6k/1P6/8/8/8/8/8/7K w - - 0 1", chess.B7)
+    assert d[57] == "b7b8q" and d[56] == "b7a8q"
+    assert d[64 + 1] == "b7b8b" and d[64] == "b7a8b"
+    assert len(d) == 8
+
+
+# =============================================================================
+# Tests globaux, sur des positions variées
+# =============================================================================
+
+POSITIONS_VARIEES = [
     DEPART,
     "r3k2r/pppq1ppp/2np1n2/2b1p1B1/2B1P1b1/2NP1N2/PPPQ1PPP/R3K2R w KQkq - 0 1",   # roques possibles
     "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3",               # prise en passant
     "r3k3/1P5P/8/8/8/8/8/7K w - - 0 1",                                              # promotions
     "r3k2r/8/8/8/3pP3/8/8/R3K2R b KQkq e3 0 1",                                     # Noirs : roques + en passant
     "4k3/8/8/8/8/8/1p6/R3K3 b - - 0 1",                                             # Noirs : promotions
-])
+]
+
+
+def nos_pieces(echiquier):
+    return [case for case, p in echiquier.piece_map().items() if p.color == echiquier.turn]
+
+
+@pytest.mark.parametrize("fen", POSITIONS_VARIEES)
 def test_aucun_coup_perdu(fen):
     # Le test le plus important : sur toutes nos pièces, chaque coup légal
     # correspond à exactement une sortie, sans perte ni doublon.
@@ -198,10 +259,33 @@ def test_aucun_coup_perdu(fen):
     assert echiquier.is_valid()
     couleur = echiquier.turn
     total = 0
-    for case, piece in echiquier.piece_map().items():
-        if piece.color == couleur:
-            m = encoder_masque_coups_legaux(echiquier, couleur, case)
-            nb_coups = sum(1 for c in echiquier.legal_moves if c.from_square == case)
-            assert m.sum() == nb_coups, f"pièce en {chess.square_name(case)}"
-            total += m.sum()
+    for case in nos_pieces(echiquier):
+        m, _ = encoder_masque_coups_legaux(echiquier, couleur, case)
+        nb_coups = sum(1 for c in echiquier.legal_moves if c.from_square == case)
+        assert m.sum() == nb_coups, f"pièce en {chess.square_name(case)}"
+        total += m.sum()
     assert total == echiquier.legal_moves.count()
+
+
+@pytest.mark.parametrize("fen", POSITIONS_VARIEES)
+def test_masque_et_dictionnaire_coherents(fen):
+    # Les cases True du masque sont exactement les clés du dictionnaire,
+    # et chaque coup du dictionnaire part bien de la pièce demandée.
+    echiquier = chess.Board(fen)
+    for case in nos_pieces(echiquier):
+        m, d = encoder_masque_coups_legaux(echiquier, echiquier.turn, case)
+        assert set(np.flatnonzero(m)) == set(d), f"pièce en {chess.square_name(case)}"
+        assert all(c.from_square == case for c in d.values())
+
+
+@pytest.mark.parametrize("fen", POSITIONS_VARIEES)
+def test_dictionnaires_couvrent_tous_les_coups(fen):
+    # En réunissant les dictionnaires de toutes nos pièces, on retrouve
+    # exactement les coups légaux : aucun coup perdu, aucun coup écrasé.
+    echiquier = chess.Board(fen)
+    decodes = []
+    for case in nos_pieces(echiquier):
+        _, d = encoder_masque_coups_legaux(echiquier, echiquier.turn, case)
+        decodes.extend(d.values())
+    assert len(decodes) == len(set(decodes))
+    assert set(decodes) == set(echiquier.legal_moves)
