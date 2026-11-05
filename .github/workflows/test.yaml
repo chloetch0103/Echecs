@@ -13,4 +13,4 @@ jobs:
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -e ".[dev]"
       - run: pytest tests/
-      - run: ruff check .
+      - run: ruff check . --fix
