@@ -4,7 +4,10 @@ import numpy as np
 import pytest
 
 from echecs_ma.env.encodage import (
-    NB_PLANS, NB_SORTIES, encoder_echiquier, encoder_masque_coups_legaux,
+    NB_PLANS,
+    NB_SORTIES,
+    encoder_echiquier,
+    encoder_masque_coups_legaux,
 )
 
 # Indices des plans, pour rendre les tests lisibles

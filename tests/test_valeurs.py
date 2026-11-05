@@ -4,7 +4,6 @@ import pytest
 
 from echecs_ma.env.valeurs import VALEURS, bilan_materiel
 
-
 # --- Table des valeurs -------------------------------------------------------
 
 def test_valeurs_des_pieces():

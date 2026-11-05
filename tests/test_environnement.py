@@ -11,7 +11,6 @@ import pytest
 from echecs_ma.env.adversaire import Adversaire, Evaluateur
 from echecs_ma.env.environnement import Environnement
 
-
 # --- Doublures pour les tests ------------------------------------------------
 
 class AdversaireScripte(Adversaire):
@@ -107,7 +106,7 @@ def test_mat_par_l_adversaire_donne_moins_un():
 
 def test_pat_donne_zero():
     env = creer_env(fen="7k/8/8/8/8/8/6Q1/K7 w - - 0 1")
-    _, r, c, fin = env.step(coup("g2g6"))                      # le Roi noir n'a plus de coup
+    _, r, _, fin = env.step(coup("g2g6"))                      # le Roi noir n'a plus de coup
     assert fin
     assert r == 0
 

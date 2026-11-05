@@ -28,7 +28,7 @@ dev = [
 # entrainer = "echecs_ma.cli:entrainer"
 
 [tool.ruff]
-line-length = 88
+line-length = 120
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

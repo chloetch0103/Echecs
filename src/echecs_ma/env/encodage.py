@@ -15,8 +15,8 @@ Encodage de la sortie des réseaux :
     sur la même ligne). On doit donc construire un vecteur masque de taille 88 pour ne garder que les
     coups valides.
 """
-import numpy as np
 import chess
+import numpy as np
 
 NB_PLANS = 20
 NB_SORTIES = 88
@@ -97,7 +97,7 @@ def encoder_masque_coups_legaux(echiquier: chess.Board, couleur: bool, pos_piece
     :return: masque, dictionnaire indice ==> coups
     """
     masque = np.full(NB_SORTIES, False, dtype=bool)
-    indice_to_coups = dict()
+    indice_to_coups = {}
     # On vérifie si c'est bien à l'algorithme de jouer
     if echiquier.turn != couleur:
         raise ValueError("Ce n'est pas à l'algorithme de jouer")

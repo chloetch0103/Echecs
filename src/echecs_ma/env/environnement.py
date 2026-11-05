@@ -1,4 +1,5 @@
 import chess
+
 from .adversaire import Adversaire, Evaluateur
 
 
@@ -19,12 +20,12 @@ class Environnement:
 
     def compute_coups_legaux_par_agent(self):
         # 1. Premier niveau du dictionnaire {type pièce : {case de départ : ...}}
-        self.coups_legaux_par_agent = dict()
+        self.coups_legaux_par_agent = {}
         for type_piece in chess.PIECE_TYPES:
-            self.coups_legaux_par_agent[type_piece] = dict()
+            self.coups_legaux_par_agent[type_piece] = {}
             for square in self.echiquier.pieces(type_piece, self.couleur):
                 position = square
-                self.coups_legaux_par_agent[type_piece][position] = list()
+                self.coups_legaux_par_agent[type_piece][position] = []
 
         # 2. Second niveau du dictionnaire {type pièce : {case de départ : liste des positions d'arrivée possible}}
         for coup in self.echiquier.legal_moves:

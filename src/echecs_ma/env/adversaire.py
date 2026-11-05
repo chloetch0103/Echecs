@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
+
 import chess
 import chess.engine
-from abc import ABC, abstractmethod
 
 
 class Adversaire(ABC):
