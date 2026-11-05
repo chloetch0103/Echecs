@@ -4,10 +4,8 @@ import numpy as np
 import pytest
 
 from echecs_ma.env.encodage import (
-    NB_PLANS,
-    NB_SORTIES,
-    encoder_echiquier,
-    encoder_masque_coups_legaux,
+    NB_PLANS, NB_SORTIES, coup_et_couleur_to_indice, encoder_echiquier,
+    encoder_masque_coups_legaux, move_to_action,
 )
 
 # Indices des plans, pour rendre les tests lisibles
@@ -292,3 +290,84 @@ def test_dictionnaires_couvrent_tous_les_coups(fen):
         decodes.extend(d.values())
     assert len(decodes) == len(set(decodes))
     assert set(decodes) == set(echiquier.legal_moves)
+
+
+# =============================================================================
+# coup_et_couleur_to_indice
+# =============================================================================
+
+def uci(c):
+    return chess.Move.from_uci(c)
+
+
+@pytest.mark.parametrize("coup, couleur, attendu", [
+    ("e2e4", chess.WHITE, 28),     # ligne 3, colonne 4
+    ("e7e5", chess.BLACK, 28),     # miroir : même indice que e2e4 pour les Blancs
+    ("g1f3", chess.WHITE, 21),
+    ("g8f6", chess.BLACK, 21),
+    ("a7a8q", chess.WHITE, 56),    # promotion en dame : indice de la case d'arrivée
+    ("a7a8b", chess.WHITE, 64),    # sous-promotions : 64 + 8 × pièce + colonne
+    ("a7a8n", chess.WHITE, 72),
+    ("a7a8r", chess.WHITE, 80),
+    ("b7c8r", chess.WHITE, 82),    # promotion avec prise : la colonne d'arrivée compte
+    ("a2a1q", chess.BLACK, 56),
+    ("a2a1n", chess.BLACK, 72),
+])
+def test_indice_du_coup(coup, couleur, attendu):
+    assert coup_et_couleur_to_indice(uci(coup), couleur) == attendu
+
+
+@pytest.mark.parametrize("fen", POSITIONS_VARIEES)
+def test_aller_retour_indice_coup(fen):
+    # Pour chaque coup du dictionnaire du masque, recalculer son indice
+    # doit redonner exactement la clé sous laquelle il est rangé.
+    echiquier = chess.Board(fen)
+    for case in nos_pieces(echiquier):
+        _, d = encoder_masque_coups_legaux(echiquier, echiquier.turn, case)
+        for indice, coup in d.items():
+            assert coup_et_couleur_to_indice(coup, echiquier.turn) == indice, coup.uci()
+
+
+# =============================================================================
+# move_to_action
+# =============================================================================
+
+def test_action_coup_simple():
+    assert move_to_action(chess.Board(), uci("e2e4"), chess.WHITE) == (chess.PAWN, chess.E2, 28)
+
+
+def test_action_des_noirs():
+    echiquier = chess.Board("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
+    assert move_to_action(echiquier, uci("g8f6"), chess.BLACK) == (chess.KNIGHT, chess.G8, 21)
+
+
+def test_action_promotion_garde_le_type_soldat():
+    # C'est le réseau des soldats qui a choisi la promotion : le type stocké est SOLDAT
+    echiquier = chess.Board("8/P6k/8/8/8/8/8/K7 w - - 0 1")
+    assert move_to_action(echiquier, uci("a7a8q"), chess.WHITE) == (chess.PAWN, chess.A7, 56)
+    assert move_to_action(echiquier, uci("a7a8n"), chess.WHITE) == (chess.PAWN, chess.A7, 72)
+
+
+def test_action_renvoie_un_type_et_pas_une_piece():
+    type_piece, _, _ = move_to_action(chess.Board(), uci("e2e4"), chess.WHITE)
+    assert isinstance(type_piece, int)          # chess.PAWN est un entier, pas un objet Piece
+
+
+@pytest.mark.parametrize("coup", ["e3e4", "e7e5"])          # case vide, pièce adverse
+def test_action_case_invalide(coup):
+    with pytest.raises(ValueError):
+        move_to_action(chess.Board(), uci(coup), chess.WHITE)
+
+
+@pytest.mark.parametrize("fen", POSITIONS_VARIEES)
+def test_action_coherente_avec_le_masque(fen):
+    # Pour chaque coup légal : l'action pointe sur une sortie autorisée du masque
+    # de sa pièce, et cette sortie se décode en ce même coup.
+    echiquier = chess.Board(fen)
+    couleur = echiquier.turn
+    for coup in echiquier.legal_moves:
+        type_piece, case, indice = move_to_action(echiquier, coup, couleur)
+        assert type_piece == echiquier.piece_type_at(coup.from_square)
+        m, d = encoder_masque_coups_legaux(echiquier, couleur, case)
+        assert m[indice]
+        assert d[indice] == coup

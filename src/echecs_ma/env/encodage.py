@@ -87,6 +87,24 @@ def encoder_echiquier(echiquier: chess.Board, couleur: bool, pos_depart) -> np.n
     return plans
 
 
+def coup_et_couleur_to_indice(coup: chess.Move, couleur: bool) -> int:
+    """
+    Détermine l'indice dans masque du coup considéré
+    :param coup:
+    :param couleur:
+    :return:
+    """
+    promotion = coup.promotion
+    i, j = case_vers_indices(coup.to_square, couleur)
+
+    # coup sans promotion ou promotion en tant que reine
+    if not promotion or promotion == chess.QUEEN:
+        return 8*i + j
+
+    # sous promotion
+    return NB_CASES + NB_COLS*TYPE_PIECE_TO_INDICE[promotion] + j
+
+
 def encoder_masque_coups_legaux(echiquier: chess.Board, couleur: bool, pos_piece: int) -> tuple[np.ndarray, dict]:
     """
     Met des True partout où l'agent peut aller. Construit également un dictionnaire permettant de passer des indices du
@@ -98,29 +116,47 @@ def encoder_masque_coups_legaux(echiquier: chess.Board, couleur: bool, pos_piece
     """
     masque = np.full(NB_SORTIES, False, dtype=bool)
     indice_to_coups = {}
-    # On vérifie si c'est bien à l'algorithme de jouer
+
+    # 1. On vérifie si c'est bien à l'algorithme de jouer
     if echiquier.turn != couleur:
         raise ValueError("Ce n'est pas à l'algorithme de jouer")
 
-    # On vérifie que le bon pion se trouve bien à la bonne position
+    # 2. On vérifie que le bon pion se trouve bien à la bonne position
     p = echiquier.piece_at(pos_piece)
     if p is None or p.color != couleur:
         raise ValueError(f"Aucune des pièces de l'algorithme ne se trouve à l'emplacement {pos_piece}")
 
+    # 3. On remplit le masque et le dictionnaire indice_to_coup
     for coup in echiquier.legal_moves:
         if coup.from_square == pos_piece:
-            i, j = case_vers_indices(coup.to_square, couleur)
-            pos_arrivee = 8*i + j
-            # 1. Gestion des coups classiques + promotions en reine (0-63)
-            masque[pos_arrivee]= True
-
-            # 2. Gestion des sous promotions (64-87)
-            promotion = coup.promotion
-            if not promotion or promotion == chess.QUEEN:
-                indice_to_coups[pos_arrivee] = coup
-                continue
-            indice = NB_CASES + NB_COLS*TYPE_PIECE_TO_INDICE[promotion] + j
+            indice = coup_et_couleur_to_indice(coup, couleur)
             masque[indice] = True
             indice_to_coups[indice] = coup
 
     return masque, indice_to_coups
+
+
+def move_to_action(echiquier: chess.Board, coup: chess.Move, couleur: bool) -> tuple[chess.PieceType, chess.Square, int]:
+    """
+    Détermine le type de pièce, sa position en carré dans l'échiquier avant coup et son indice
+    dans le masque à partir de coup
+    :param echiquier:
+    :param couleur:
+    :param coup:
+    :return:
+    """
+    # 1. Type de pièce
+    piece_t = echiquier.piece_at(coup.from_square)
+    if piece_t is None or piece_t.color != couleur:
+        raise ValueError(f"Aucune des pièces de l'algorithme ne se trouve à l'emplacement {coup.from_square}")
+
+    # 2. Position en square dans l'échiquier avant coup
+    sqr_pos = coup.from_square
+
+    # 3. Indice du coup dans le masque
+    indice = coup_et_couleur_to_indice(coup, couleur)
+
+    return piece_t.piece_type, sqr_pos, indice
+
+
+
