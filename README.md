@@ -1,4 +1,5 @@
 # Échecs multi-agents
+[![Tests](https://github.com/chloetch0103/Echecs/actions/workflows/test.yaml/badge.svg)](https://github.com/chloetch0103/Echecs/actions/workflows/test.yaml)
 
 Système d'apprentissage par renforcement multi-agents pour les échecs : chaque pièce est un agent autonome, et toutes coopèrent autour d'une récompense commune. Les agents s'entraîneront contre Stockfish, dont la force augmentera progressivement.
 
