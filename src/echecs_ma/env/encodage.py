@@ -83,7 +83,7 @@ def encoder_echiquier(echiquier: chess.Board, couleur: bool) -> np.ndarray:
     return plans
 
 
-def ajouter_position_aux_plans(plans, pos_depart: int, couleur: bool) -> np.ndarray:
+def ajouter_position_aux_plans(plans: np.ndarray, pos_depart: int, couleur: bool) -> np.ndarray:
     plans_complet = np.zeros((NB_PLANS_ENTREE, 8, 8), dtype=np.float32)
     i, j = case_vers_indices(pos_depart, couleur)
     plan = np.zeros((8, 8), dtype=np.float32)
