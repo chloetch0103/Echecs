@@ -1,13 +1,14 @@
 """
 Encodage de l'échiquier pour le réseau de neurones, du point de vue de l'algorithme
-(nos pièces toujours en bas). 20 plans 8x8 :
+(nos pièces toujours en bas). 19 plans 8x8 (le 20e est rajouté par la suite) :
   0-5 : nos pièces
   6-11 : pièces adverses
   12 : case de prise en passant
   13-16 : droits de roque (nous petit/grand, adversaire petit/grand)
   17 : compteur règle des 50 coups
   18 : 1 partout si la position est déjà apparue au moins une fois avant, sinon 0
-  19 : 1 pour indiquer au réseau la pièce concernée
+  19 : ajouté par la suite avec la fonction ajouter_position_aux_plans avec normalisation
+  du plan 17
 
 Encodage de la sortie des réseaux :
     - Les réseaux doivent estimer 88 Q_R et Q_C (64 pour chaque case de l'échiquier + promotion en reine
@@ -18,7 +19,8 @@ Encodage de la sortie des réseaux :
 import chess
 import numpy as np
 
-NB_PLANS = 20
+NB_PLANS = 19
+NB_PLANS_ENTREE = NB_PLANS + 1
 NB_SORTIES = 88
 NB_CASES = 64
 NB_COLS = 8
@@ -50,7 +52,7 @@ def encoder_piece(echiquier: chess.Board, couleur: bool, type_piece: int,
     return plan
 
 
-def encoder_echiquier(echiquier: chess.Board, couleur: bool, pos_depart) -> np.ndarray:
+def encoder_echiquier(echiquier: chess.Board, couleur: bool) -> np.ndarray:
     plans = np.zeros((NB_PLANS, 8, 8), dtype=np.uint8)
     couleur_adv = not couleur
 
@@ -78,13 +80,20 @@ def encoder_echiquier(echiquier: chess.Board, couleur: bool, pos_depart) -> np.n
     # 5. Répétition de positions
     plans[18] = np.int8(echiquier.is_repetition(2))
 
-    # 6. Position de départ
+    return plans
+
+
+def ajouter_position_aux_plans(plans, pos_depart: int, couleur: bool) -> np.ndarray:
+    plans_complet = np.zeros((NB_PLANS_ENTREE, 8, 8), dtype=np.float32)
     i, j = case_vers_indices(pos_depart, couleur)
     plan = np.zeros((8, 8), dtype=np.float32)
     plan[i, j] = 1
-    plans[19] = plan
+    plans_complet[:NB_PLANS] = plans
+    plans_complet[NB_PLANS] = plan
 
-    return plans
+    # Normalisation de la répétition des 50 coups (17e plan)
+    plans_complet[17] = plans_complet[17]/100
+    return plans_complet
 
 
 def coup_et_couleur_to_indice(coup: chess.Move, couleur: bool) -> int:

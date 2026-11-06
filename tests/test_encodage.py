@@ -5,7 +5,9 @@ import pytest
 
 from echecs_ma.env.encodage import (
     NB_PLANS,
+    NB_PLANS_ENTREE,
     NB_SORTIES,
+    ajouter_position_aux_plans,
     coup_et_couleur_to_indice,
     encoder_echiquier,
     encoder_masque_coups_legaux,
@@ -34,13 +36,13 @@ def coups(fen, case, couleur=chess.WHITE):
 # =============================================================================
 
 def test_forme_et_type():
-    plans = encoder_echiquier(chess.Board(), chess.WHITE, chess.E2)
+    plans = encoder_echiquier(chess.Board(), chess.WHITE)
     assert plans.shape == (NB_PLANS, 8, 8)
     assert plans.dtype == np.uint8
 
 
 def test_pieces_position_initiale():
-    plans = encoder_echiquier(chess.Board(), chess.WHITE, chess.E2)
+    plans = encoder_echiquier(chess.Board(), chess.WHITE)
     assert plans[NOS_PIECES[chess.PAWN]][1].sum() == 8        # nos soldats sur notre 2e rangée
     assert plans[PIECES_ADVERSES[chess.PAWN]][6].sum() == 8   # les leurs sur la 7e
     assert plans[NOS_PIECES[chess.KING]][0, 4] == 1           # notre Roi en e1
@@ -51,14 +53,14 @@ def test_miroir_pour_les_noirs():
     # La position initiale est symétrique : vue des Noirs, elle doit donner exactement
     # le même encodage que vue des Blancs (soldat e7 des Noirs ↔ soldat e2 des Blancs).
     echiquier = chess.Board()
-    blancs = encoder_echiquier(echiquier, chess.WHITE, chess.E2)
-    noirs = encoder_echiquier(echiquier, chess.BLACK, chess.E7)
+    blancs = encoder_echiquier(echiquier, chess.WHITE)
+    noirs = encoder_echiquier(echiquier, chess.BLACK)
     np.testing.assert_array_equal(blancs, noirs)
 
 
 def test_miroir_garde_les_colonnes():
     # Miroir vertical seulement : notre Roi reste en colonne e, pas en colonne d
-    plans = encoder_echiquier(chess.Board(), chess.BLACK, chess.E8)
+    plans = encoder_echiquier(chess.Board(), chess.BLACK)
     assert plans[NOS_PIECES[chess.KING]][0, 4] == 1
 
 
@@ -67,7 +69,7 @@ def test_prise_en_passant():
     echiquier = chess.Board()
     for c in ["e2e4", "a7a6", "e4e5", "d7d5"]:
         echiquier.push_uci(c)
-    plans = encoder_echiquier(echiquier, chess.WHITE, chess.E5)
+    plans = encoder_echiquier(echiquier, chess.WHITE)
     assert plans[PRISE_EN_PASSANT][5, 3] == 1
     assert plans[PRISE_EN_PASSANT].sum() == 1
 
@@ -76,52 +78,103 @@ def test_pas_de_prise_en_passant_si_elle_n_est_pas_legale():
     # 1. e4 : python-chess note e3 comme case de prise en passant, mais personne ne peut y prendre
     echiquier = chess.Board()
     echiquier.push_uci("e2e4")
-    plans = encoder_echiquier(echiquier, chess.BLACK, chess.E7)
+    plans = encoder_echiquier(echiquier, chess.BLACK)
     assert plans[PRISE_EN_PASSANT].sum() == 0
 
 
 def test_droits_de_roque():
-    assert (encoder_echiquier(chess.Board(), chess.WHITE, chess.E2)[ROQUES] == 1).all()
+    assert (encoder_echiquier(chess.Board(), chess.WHITE)[ROQUES] == 1).all()
     # Les Blancs n'ont plus que le petit roque, les Noirs plus que le grand
     fen = "r3k2r/8/8/8/8/8/8/R3K2R w Kq - 0 1"
-    roques = encoder_echiquier(chess.Board(fen), chess.WHITE, chess.E1)[ROQUES]
+    roques = encoder_echiquier(chess.Board(fen), chess.WHITE)[ROQUES]
     assert [plan[0, 0] for plan in roques] == [1, 0, 0, 1]   # nous petit/grand, eux petit/grand
 
 
 def test_droits_de_roque_vus_des_noirs():
     # Mêmes droits, vus des Noirs : « nous » devient les Noirs
     fen = "r3k2r/8/8/8/8/8/8/R3K2R b Kq - 0 1"
-    roques = encoder_echiquier(chess.Board(fen), chess.BLACK, chess.E8)[ROQUES]
+    roques = encoder_echiquier(chess.Board(fen), chess.BLACK)[ROQUES]
     assert [plan[0, 0] for plan in roques] == [0, 1, 1, 0]
 
 
 @pytest.mark.parametrize("demi_coups, attendu", [(0, 0), (50, 50), (100, 100), (130, 100)])
 def test_regle_des_50_coups(demi_coups, attendu):
     echiquier = chess.Board(f"4k3/8/8/8/8/8/8/4K2R w - - {demi_coups} 80")
-    plans = encoder_echiquier(echiquier, chess.WHITE, chess.E1)
+    plans = encoder_echiquier(echiquier, chess.WHITE)
     assert (plans[REGLE_50] == attendu).all()
 
 
 def test_repetition():
     echiquier = chess.Board()
-    assert encoder_echiquier(echiquier, chess.WHITE, chess.G1)[REPETITION].sum() == 0
+    assert encoder_echiquier(echiquier, chess.WHITE)[REPETITION].sum() == 0
     # Les cavaliers sortent puis rentrent : retour à la position initiale
     for c in ["g1f3", "g8f6", "f3g1", "f6g8"]:
         echiquier.push_uci(c)
-    assert (encoder_echiquier(echiquier, chess.WHITE, chess.G1)[REPETITION] == 1).all()
+    assert (encoder_echiquier(echiquier, chess.WHITE)[REPETITION] == 1).all()
+
+
+def test_position_ne_depend_pas_de_la_piece():
+    # Les 19 plans ne contiennent plus la pièce : une seule position, un seul encodage
+    plans = encoder_echiquier(chess.Board(), chess.WHITE)
+    assert plans.shape[0] == NB_PLANS == 19
+
+
+# =============================================================================
+# ajouter_position_aux_plans
+# =============================================================================
+
+def entree(fen_ou_echiquier, case, couleur=chess.WHITE):
+    echiquier = chess.Board(fen_ou_echiquier) if isinstance(fen_ou_echiquier, str) else fen_ou_echiquier
+    return ajouter_position_aux_plans(encoder_echiquier(echiquier, couleur), case, couleur)
+
+
+def test_entree_forme_et_type():
+    x = entree(chess.STARTING_FEN, chess.E2)
+    assert x.shape == (NB_PLANS_ENTREE, 8, 8) == (20, 8, 8)
+    assert x.dtype == np.float32
 
 
 def test_plan_de_la_piece_concernee():
-    plans = encoder_echiquier(chess.Board(), chess.WHITE, chess.G1)
-    assert plans[PIECE_CONCERNEE].sum() == 1
-    assert plans[PIECE_CONCERNEE][0, 6] == 1
+    x = entree(chess.STARTING_FEN, chess.G1)
+    assert x[PIECE_CONCERNEE].sum() == 1
+    assert x[PIECE_CONCERNEE][0, 6] == 1
+
+
+def test_plan_de_la_piece_avec_miroir():
+    # Le cavalier g8 des Noirs est, vu des Noirs, sur leur première rangée, colonne g
+    echiquier = chess.Board("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
+    x = entree(echiquier, chess.G8, chess.BLACK)
+    assert x[PIECE_CONCERNEE][0, 6] == 1
+
+
+def test_les_19_premiers_plans_sont_recopies():
+    # Hors normalisation du plan 17, l'entrée reprend exactement la position
+    echiquier = chess.Board("r3k2r/pppq1ppp/2np1n2/2b1p1B1/2B1P1b1/2NP1N2/PPPQ1PPP/R3K2R w KQkq - 6 10")
+    plans = encoder_echiquier(echiquier, chess.WHITE)
+    x = ajouter_position_aux_plans(plans, chess.E1, chess.WHITE)
+    autres = [k for k in range(NB_PLANS) if k != REGLE_50]
+    np.testing.assert_array_equal(x[autres], plans[autres])
+
+
+@pytest.mark.parametrize("demi_coups, attendu", [(0, 0.0), (37, 0.37), (100, 1.0), (130, 1.0)])
+def test_regle_des_50_coups_normalisee(demi_coups, attendu):
+    x = entree(f"4k3/8/8/8/8/8/8/4K2R w - - {demi_coups} 80", chess.E1)
+    np.testing.assert_allclose(x[REGLE_50], attendu, rtol=1e-6)
+
+
+def test_la_position_stockee_n_est_pas_modifiee():
+    # La normalisation ne doit pas toucher aux plans d'origine (ceux de la mémoire)
+    plans = encoder_echiquier(chess.Board("4k3/8/8/8/8/8/8/4K2R w - - 37 80"), chess.WHITE)
+    copie = plans.copy()
+    ajouter_position_aux_plans(plans, chess.E1, chess.WHITE)
+    np.testing.assert_array_equal(plans, copie)
 
 
 def test_deux_soldats_ont_des_entrees_differentes():
-    # C'est le rôle du dernier plan : le réseau partagé doit distinguer les soldats
-    echiquier = chess.Board()
-    a = encoder_echiquier(echiquier, chess.WHITE, chess.A2)
-    e = encoder_echiquier(echiquier, chess.WHITE, chess.E2)
+    # C'est le rôle du plan de la pièce : le réseau partagé doit distinguer les soldats
+    plans = encoder_echiquier(chess.Board(), chess.WHITE)
+    a = ajouter_position_aux_plans(plans, chess.A2, chess.WHITE)
+    e = ajouter_position_aux_plans(plans, chess.E2, chess.WHITE)
     assert not np.array_equal(a, e)
     np.testing.assert_array_equal(a[:PIECE_CONCERNEE], e[:PIECE_CONCERNEE])
 
