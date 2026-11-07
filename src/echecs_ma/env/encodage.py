@@ -16,6 +16,8 @@ Encodage de la sortie des réseaux :
     sur la même ligne). On doit donc construire un vecteur masque de taille 88 pour ne garder que les
     coups valides.
 """
+from dataclasses import dataclass
+
 import chess
 import numpy as np
 
@@ -30,6 +32,18 @@ TYPE_PIECE_TO_INDICE: dict[chess.PieceType, int] = {
     chess.KNIGHT: 1,
     chess.ROOK: 2,
 }
+
+@dataclass(frozen=True)
+class Action:
+    type_piece: chess.PieceType
+    case_depart: int
+    indice: int
+
+    def __post_init__(self):
+        if not 0 <= self.case_depart < 64:
+            raise ValueError(f"La position doit être entre 0 et 63: case_depart = {self.case_depart}")
+        if not 0 <= self.indice < NB_SORTIES:
+            raise ValueError(f"L'indice doit être entre 0 et {NB_SORTIES-1}: indice = {self.indice}")
 
 
 def case_vers_indices(square: int, couleur_algo: bool) -> tuple[int, int]:
@@ -145,7 +159,7 @@ def encoder_masque_coups_legaux(echiquier: chess.Board, couleur: bool, pos_piece
     return masque, indice_to_coups
 
 
-def move_to_action(echiquier: chess.Board, coup: chess.Move, couleur: bool) -> tuple[chess.PieceType, chess.Square, int]:
+def move_to_action(echiquier: chess.Board, coup: chess.Move, couleur: bool) -> Action:
     """
     Détermine le type de pièce, sa position en carré dans l'échiquier avant coup et son indice
     dans le masque à partir de coup
@@ -160,12 +174,12 @@ def move_to_action(echiquier: chess.Board, coup: chess.Move, couleur: bool) -> t
         raise ValueError(f"Aucune des pièces de l'algorithme ne se trouve à l'emplacement {coup.from_square}")
 
     # 2. Position en square dans l'échiquier avant coup
-    sqr_pos = coup.from_square
+    case_depart = coup.from_square
 
     # 3. Indice du coup dans le masque
     indice = coup_et_couleur_to_indice(coup, couleur)
 
-    return piece_t.piece_type, sqr_pos, indice
+    return Action(type_piece=piece_t.piece_type, indice=indice, case_depart=case_depart)
 
 
 

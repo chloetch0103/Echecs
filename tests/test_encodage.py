@@ -1,4 +1,6 @@
 """Tests de l'encodage : plans d'entrée du réseau et masque des coups légaux."""
+import dataclasses
+
 import chess
 import numpy as np
 import pytest
@@ -7,6 +9,7 @@ from echecs_ma.env.encodage import (
     NB_PLANS,
     NB_PLANS_ENTREE,
     NB_SORTIES,
+    Action,
     ajouter_position_aux_plans,
     coup_et_couleur_to_indice,
     encoder_echiquier,
@@ -390,24 +393,24 @@ def test_aller_retour_indice_coup(fen):
 # =============================================================================
 
 def test_action_coup_simple():
-    assert move_to_action(chess.Board(), uci("e2e4"), chess.WHITE) == (chess.PAWN, chess.E2, 28)
+    assert move_to_action(chess.Board(), uci("e2e4"), chess.WHITE) == Action(chess.PAWN, chess.E2, 28)
 
 
 def test_action_des_noirs():
     echiquier = chess.Board("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1")
-    assert move_to_action(echiquier, uci("g8f6"), chess.BLACK) == (chess.KNIGHT, chess.G8, 21)
+    assert move_to_action(echiquier, uci("g8f6"), chess.BLACK) == Action(chess.KNIGHT, chess.G8, 21)
 
 
 def test_action_promotion_garde_le_type_soldat():
     # C'est le réseau des soldats qui a choisi la promotion : le type stocké est SOLDAT
     echiquier = chess.Board("8/P6k/8/8/8/8/8/K7 w - - 0 1")
-    assert move_to_action(echiquier, uci("a7a8q"), chess.WHITE) == (chess.PAWN, chess.A7, 56)
-    assert move_to_action(echiquier, uci("a7a8n"), chess.WHITE) == (chess.PAWN, chess.A7, 72)
+    assert move_to_action(echiquier, uci("a7a8q"), chess.WHITE) == Action(chess.PAWN, chess.A7, 56)
+    assert move_to_action(echiquier, uci("a7a8n"), chess.WHITE) == Action(chess.PAWN, chess.A7, 72)
 
 
 def test_action_renvoie_un_type_et_pas_une_piece():
-    type_piece, _, _ = move_to_action(chess.Board(), uci("e2e4"), chess.WHITE)
-    assert isinstance(type_piece, int)          # chess.PAWN est un entier, pas un objet Piece
+    action = move_to_action(chess.Board(), uci("e2e4"), chess.WHITE)
+    assert isinstance(action.type_piece, int)          # chess.PAWN est un entier, pas un objet Piece
 
 
 @pytest.mark.parametrize("coup", ["e3e4", "e7e5"])          # case vide, pièce adverse
@@ -423,8 +426,28 @@ def test_action_coherente_avec_le_masque(fen):
     echiquier = chess.Board(fen)
     couleur = echiquier.turn
     for coup in echiquier.legal_moves:
-        type_piece, case, indice = move_to_action(echiquier, coup, couleur)
-        assert type_piece == echiquier.piece_type_at(coup.from_square)
-        m, d = encoder_masque_coups_legaux(echiquier, couleur, case)
-        assert m[indice]
-        assert d[indice] == coup
+        action = move_to_action(echiquier, coup, couleur)
+        assert action.type_piece == echiquier.piece_type_at(coup.from_square)
+        m, d = encoder_masque_coups_legaux(echiquier, couleur, action.case_depart)
+        assert m[action.indice]
+        assert d[action.indice] == coup
+
+# =============================================================================
+# Action
+# =============================================================================
+
+def test_action_est_figee():
+    action = Action(chess.PAWN, chess.E2, 28)
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        action.indice = 20
+
+
+@pytest.mark.parametrize("case_depart, indice", [(-1, 0), (64, 0), (0, -1), (0, NB_SORTIES)])
+def test_action_refuse_les_valeurs_hors_bornes(case_depart, indice):
+    with pytest.raises(ValueError):
+        Action(chess.PAWN, case_depart, indice)
+
+
+def test_action_accepte_les_bornes():
+    Action(chess.PAWN, 0, 0)
+    Action(chess.PAWN, 63, NB_SORTIES - 1)
