@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 
 import chess
 import chess.engine
+import numpy as np
+
+from echecs_ma.env.valeurs import bilan_materiel
 
 
 class Adversaire(ABC):
@@ -28,9 +31,6 @@ class AdversaireStockFish(Adversaire):
     def jouer(self, echequier: chess.Board):
         return self.moteur.play(echequier, chess.engine.Limit(self.temps_coup)).move
 
-    def fermer(self):
-        self.moteur.close()
-
 
 class Evaluateur(ABC):
     @abstractmethod
@@ -55,5 +55,7 @@ class EvaluateurStockfish(Evaluateur):
         esperance_vnd = score.pov(couleur).wdl().expectation()
         return 2 * esperance_vnd - 1
 
-    def fermer(self):
-        self.moteur.close()
+
+class EvaluateurMateriel(Evaluateur):
+    def potentiel(self, echiquier: chess.Board, couleur: bool):
+        return np.tanh(bilan_materiel(echiquier, couleur)/10)

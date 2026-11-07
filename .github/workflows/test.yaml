@@ -12,5 +12,5 @@ jobs:
           python-version: "3.14"
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: pip install -e ".[dev]"
+      - run: ruff check .
       - run: pytest tests/
-      - run: ruff check . --fix

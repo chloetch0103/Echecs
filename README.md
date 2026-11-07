@@ -22,7 +22,7 @@ Prérequis : Python 3.14 et [Stockfish](https://stockfishchess.org/download/).
 
 ```bash
 git clone https://github.com/chloetch0103/Echecs.git
-cd echecs_multi_agents
+cd Echecs
 python -m venv .venv
 .venv\Scripts\activate          # Linux / macOS : source .venv/bin/activate
 python -m pip install -e ".[dev]"
@@ -49,6 +49,7 @@ Les tests de l'environnement n'ont pas besoin de Stockfish : l'adversaire et l'�
 configs/          # fichiers de configuration
 docs/             # spécification
 src/echecs_ma/
+  agents/         # réseaux de neurones
   env/            # environnement de jeu, adversaire et évaluateur Stockfish, valeurs des pièces et fonction de calcul du bilan matériel, encodage
 tests/            # tests unitaires
 pyproject.toml    # métadonnées et dépendances du projet
@@ -58,7 +59,7 @@ pyproject.toml    # métadonnées et dépendances du projet
 
 - [x] Environnement : coups légaux par agent, récompense façonnée, coût de danger, fins de partie.
 - [x] Valeurs des pièces et potentiel matériel de repli.
-- [ ] Encodage des données pour les réseaux de neurones.
+- [x] Encodage des données pour les réseaux de neurones.
 - [ ] Agents, arbitre et relaxation lagrangienne.
 - [ ] Bouclier anti-mat.
 - [ ] Boucle d'entraînement et curriculum.

@@ -1,14 +1,16 @@
 """Tests de l'environnement, sans Stockfish.
 
 On remplace l'adversaire et l'évaluateur par des versions prévisibles :
-- AdversaireScripte joue une liste de coups fixée à l'avance ;
-- EvaluateurNul renvoie toujours phi = 0, donc r = z en fin de partie ;
-- EvaluateurScripte renvoie une suite de valeurs de phi choisies.
+    - AdversaireScripte joue une liste de coups fixée à l'avance
+    - EvaluateurNul renvoie toujours phi = 0, donc r = z en fin de partie
+    - EvaluateurScripte renvoie une suite de valeurs de phi choisies
 """
+import math
+
 import chess
 import pytest
 
-from echecs_ma.env.adversaire import Adversaire, Evaluateur
+from echecs_ma.env.adversaire import Adversaire, Evaluateur, EvaluateurMateriel
 from echecs_ma.env.environnement import Environnement
 
 # --- Doublures pour les tests ------------------------------------------------
@@ -152,3 +154,75 @@ def test_agents_noirs_l_adversaire_commence():
     env = creer_env(couleur=chess.BLACK, coups_adverses=["e2e4"])
     assert env.echiquier.turn == chess.BLACK
     assert env.echiquier.move_stack == [coup("e2e4")]
+
+
+# --- Tests des évaluateurs de position (potentiel phi), sans Stockfish ---
+
+
+SANS_DAME_NOIRE = "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+SANS_PION_NOIR = "rnbqkbnr/ppppppp1/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+ENORME_AVANTAGE = "QQQQ3k/8/8/8/8/8/8/QQQ1K3 w - - 0 1"      # 7 dames blanches contre un Roi seul
+
+
+def phi(fen, couleur=chess.WHITE):
+    return EvaluateurMateriel().potentiel(chess.Board(fen), couleur)
+
+
+# --- Classes abstraites ------------------------------------------------------
+
+def test_on_ne_peut_pas_creer_un_evaluateur_abstrait():
+    with pytest.raises(TypeError):
+        Evaluateur()
+
+
+def test_on_ne_peut_pas_creer_un_adversaire_abstrait():
+    with pytest.raises(TypeError):
+        Adversaire()
+
+
+def test_evaluateur_materiel_est_un_evaluateur():
+    assert isinstance(EvaluateurMateriel(), Evaluateur)
+
+
+# --- Valeurs du potentiel ----------------------------------------------------
+
+@pytest.mark.parametrize("couleur", [chess.WHITE, chess.BLACK])
+def test_position_initiale_potentiel_nul(couleur):
+    assert phi(chess.STARTING_FEN, couleur) == 0
+
+
+def test_une_dame_d_avance():
+    # tanh(9 / 10) ≈ 0,716
+    assert phi(SANS_DAME_NOIRE) == pytest.approx(math.tanh(0.9))
+    assert phi(SANS_DAME_NOIRE) == pytest.approx(0.716, abs=1e-3)
+
+
+@pytest.mark.parametrize("fen", [SANS_DAME_NOIRE, SANS_PION_NOIR, ENORME_AVANTAGE])
+def test_symetrie_entre_les_deux_camps(fen):
+    # Ce qui est un avantage pour l'un est un désavantage pour l'autre
+    assert phi(fen, chess.BLACK) == pytest.approx(-phi(fen, chess.WHITE))
+
+
+def test_plus_de_materiel_donne_un_plus_grand_potentiel():
+    assert 0 < phi(SANS_PION_NOIR) < phi(SANS_DAME_NOIRE) < phi(ENORME_AVANTAGE)
+
+
+@pytest.mark.parametrize("couleur", [chess.WHITE, chess.BLACK])
+def test_potentiel_reste_strictement_entre_moins_un_et_un(couleur):
+    # Même avec 63 points d'avance, Φ ne doit jamais atteindre ±1 (la valeur de z)
+    assert -1 < phi(ENORME_AVANTAGE, couleur) < 1
+
+
+def test_renvoie_un_nombre():
+    assert isinstance(float(phi(SANS_DAME_NOIRE)), float)
+
+
+def test_dans_l_environnement_le_facconnage_suit_le_materiel():
+    # 1. e4 d5 2. exd5 : les Blancs gagnent un pion, phi passe de 0 à tanh(0,1)
+    env = Environnement(chess.WHITE, AdversaireScripte(["d7d5", "a7a6"]), EvaluateurMateriel(), gamma=0.99)
+    env.reset()
+    assert env.phi == 0
+    env.step(chess.Move.from_uci("e2e4"))
+    _, r, _, _ = env.step(chess.Move.from_uci("e4d5"))
+    assert env.phi == pytest.approx(math.tanh(0.1))
+    assert r == pytest.approx(0.99 * math.tanh(0.1) - 0)
