@@ -2,8 +2,9 @@ from abc import ABC, abstractmethod
 
 import chess
 import chess.engine
-from echecs_ma.env.valeurs import bilan_materiel
 import numpy as np
+
+from echecs_ma.env.valeurs import bilan_materiel
 
 
 class Adversaire(ABC):

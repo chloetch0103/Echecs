@@ -1,13 +1,14 @@
 """Tests de l'environnement, sans Stockfish.
 
 On remplace l'adversaire et l'évaluateur par des versions prévisibles :
-- AdversaireScripte joue une liste de coups fixée à l'avance ;
-- EvaluateurNul renvoie toujours phi = 0, donc r = z en fin de partie ;
-- EvaluateurScripte renvoie une suite de valeurs de phi choisies.
+    - AdversaireScripte joue une liste de coups fixée à l'avance
+    - EvaluateurNul renvoie toujours phi = 0, donc r = z en fin de partie
+    - EvaluateurScripte renvoie une suite de valeurs de phi choisies
 """
+import math
+
 import chess
 import pytest
-import math
 
 from echecs_ma.env.adversaire import Adversaire, Evaluateur, EvaluateurMateriel
 from echecs_ma.env.environnement import Environnement
