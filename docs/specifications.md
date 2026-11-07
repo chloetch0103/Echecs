@@ -99,12 +99,12 @@ $$
 Les échecs subis sont limités par un budget de danger, avec un prix $\lambda$ appris pendant l'entraînement.
 
 - **Coût** : $c_t = 1$ si le coup suivant de l'adversaire met le Roi en échec, 0 sinon. Extension possible : compter les cases autour du Roi attaquées par l'adversaire.
-- **Seuil** : $d = 5$, le danger total toléré en moyenne par partie (un peu plus de 5 échecs, à cause de $\gamma$).
+- **Seuil** : $d = 5$, le danger total toléré en moyenne par partie.
 
 Le problème complet :
 
 $$
-\max_\pi \; J_R(\pi) = \mathbb{E}_{\tau \sim \pi}\Big[\sum_t \gamma^t r_t\Big] \quad \text{s.c.} \quad J_C(\pi) = \mathbb{E}_{\tau \sim \pi}\Big[\sum_t \gamma^t c_t\Big] \le d \quad \text{et coups dans } \mathcal{S}(s)
+\max_\pi \; J_R(\pi) = \mathbb{E}_{\tau \sim \pi}\Big[\sum_t \gamma^t r_t\Big] \quad \text{s.c.} \quad J_C(\pi) = \mathbb{E}_{\tau \sim \pi}\Big[\sum_t c_t\Big] \le d \quad \text{et coups dans } \mathcal{S}(s)
 $$
 
 Relaxation lagrangienne :

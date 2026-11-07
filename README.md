@@ -22,7 +22,7 @@ Prérequis : Python 3.14 et [Stockfish](https://stockfishchess.org/download/).
 
 ```bash
 git clone https://github.com/chloetch0103/Echecs.git
-cd echecs_multi_agents
+cd Echecs
 python -m venv .venv
 .venv\Scripts\activate          # Linux / macOS : source .venv/bin/activate
 python -m pip install -e ".[dev]"
