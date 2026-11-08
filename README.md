@@ -50,6 +50,7 @@ configs/          # fichiers de configuration
 docs/             # spécification
 src/echecs_ma/
   agents/         # réseaux de neurones, arbitre
+  entrainement    # mémoire
   env/            # environnement de jeu, adversaire et évaluateur Stockfish, valeurs des pièces et fonction de calcul du bilan matériel, encodage
 tests/            # tests unitaires
 pyproject.toml    # métadonnées et dépendances du projet
