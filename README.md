@@ -60,8 +60,9 @@ pyproject.toml    # métadonnées et dépendances du projet
 - [x] Environnement : coups légaux par agent, récompense façonnée, coût de danger, fins de partie.
 - [x] Valeurs des pièces et potentiel matériel de repli.
 - [x] Encodage des données pour les réseaux de neurones.
-- [x] Agents, arbitre 
-- [ ] relaxation lagrangienne.
+- [x] Agents, arbitre.
+- [x] Mémoire
+- [ ] Relaxation lagrangienne.
 - [ ] Bouclier anti-mat.
 - [ ] Boucle d'entraînement et curriculum.
 
