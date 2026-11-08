@@ -50,6 +50,7 @@ configs/          # fichiers de configuration
 docs/             # spécification
 src/echecs_ma/
   agents/         # réseaux de neurones, arbitre
+  entrainement    # mémoire
   env/            # environnement de jeu, adversaire et évaluateur Stockfish, valeurs des pièces et fonction de calcul du bilan matériel, encodage
 tests/            # tests unitaires
 pyproject.toml    # métadonnées et dépendances du projet
@@ -60,8 +61,9 @@ pyproject.toml    # métadonnées et dépendances du projet
 - [x] Environnement : coups légaux par agent, récompense façonnée, coût de danger, fins de partie.
 - [x] Valeurs des pièces et potentiel matériel de repli.
 - [x] Encodage des données pour les réseaux de neurones.
-- [x] Agents, arbitre 
-- [ ] relaxation lagrangienne.
+- [x] Agents, arbitre.
+- [x] Mémoire
+- [ ] Relaxation lagrangienne.
 - [ ] Bouclier anti-mat.
 - [ ] Boucle d'entraînement et curriculum.
 
