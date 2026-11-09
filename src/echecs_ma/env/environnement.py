@@ -43,6 +43,10 @@ class Environnement:
             return 0
         return 1 if issue.winner == self.couleur else -1
 
+    def get_z(self):
+        resultat = self.echiquier.outcome(claim_draw=True)
+        return self._z(resultat)
+
     def step(self, coup):
         """
         Permet de faire avancer la partie
