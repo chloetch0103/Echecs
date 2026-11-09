@@ -22,7 +22,6 @@ class Lot:
     cases_suiv: np.ndarray
     types_suiv: np.ndarray
     plans_suiv: np.ndarray
-    couleur: np.ndarray
 
 
 class Memoire:
@@ -44,14 +43,12 @@ class Memoire:
         self.memoire_cases_suiv = np.zeros((taille_memoire, NB_PIECES_MAX), dtype=np.uint8)
         self.memoire_types_suiv = np.zeros((taille_memoire, NB_PIECES_MAX), dtype=np.uint8)
         self.memoire_plans_suiv = np.zeros((taille_memoire, NB_PLANS, 8, 8), dtype=np.uint8)
-        self.memoire_couleur = np.zeros(taille_memoire, dtype=bool)
 
     def stocker_en_memoire(self,  r: float, c: float, pos_arbitre_av: ArbitrePositon, dec_arbitre_av: ArbitreDecision,
-                           pos_arbitre_ap: ArbitrePositon, couleur: bool):
+                           pos_arbitre_ap: ArbitrePositon):
         """
         Stocke une transition en memoire (r, c, s, s', a).
         s' à None ==> fin de la partie donc fin = True
-        :param couleur:
         :param r:
         :param c:
         :param pos_arbitre_av:
@@ -59,10 +56,9 @@ class Memoire:
         :param pos_arbitre_ap:
         :return:
         """
-        # 1. Stockage récompense, coup et couleur
+        # 1. Stockage récompense et coup
         self.memoire_r[self.pointeur_ecriture] = r
         self.memoire_c[self.pointeur_ecriture] = c
-        self.memoire_couleur[self.pointeur_ecriture] = couleur
 
         # 2. Stockage configuration échiquier avant coup (s)
         self.memoire_plans[self.pointeur_ecriture] = pos_arbitre_av.plans
@@ -116,6 +112,5 @@ class Memoire:
                 nb_pieces_suiv=self.memoire_nb_pieces_suiv[indices_transitions], types_suiv=self.memoire_types_suiv[indices_transitions],
                 cases_suiv=self.memoire_cases_suiv[indices_transitions], case_dep=self.memoire_case_dep[indices_transitions],
                 plans=self.memoire_plans[indices_transitions], indice=self.memoire_indice[indices_transitions],
-                type_action=self.memoire_type_action[indices_transitions], plans_suiv=self.memoire_plans_suiv[indices_transitions],
-                     couleur=self.memoire_couleur[indices_transitions])
+                type_action=self.memoire_type_action[indices_transitions], plans_suiv=self.memoire_plans_suiv[indices_transitions])
         return tirage

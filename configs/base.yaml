@@ -24,7 +24,7 @@ stockfish:
     actif: true
     pas_niveau: 1               # de combien le niveau monte à chaque palier
     seuil_montee: 0.0           # résultat moyen (z) à dépasser pour monter d'un niveau - à ajuster
-    fenetre: 100                # nombre de parties sur lesquelles on mesure le résultat moyen z
+    fenetre: 100                # nombre de parties sur lesquelles on mesure ce retour moyen
 
 contrainte:
   lagrangien:
@@ -48,7 +48,6 @@ agents:
 entrainement:
   nb_parties: 20000
   taille_memoire: 100000        # nombre de transitions gardées en mémoire
-  debut_apprentissage: 2000     # après combien de parties, on commence à tirer en mémoire pour l'apprentissage
   taille_lot: 64
   frequence_cible: 1000         # nombre de mises à jour des réseaux entre deux copies vers le réseau cible
   frequence_sauvegarde: 500     # parties entre deux sauvegardes
@@ -56,5 +55,4 @@ entrainement:
 
 journal:
   dossier: runs
-  csv_file_name: journal.csv
   frequence: 10                 # parties entre deux écritures (retour, échecs subis, lambda, niveau adverse)

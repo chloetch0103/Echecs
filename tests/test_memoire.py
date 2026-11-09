@@ -42,7 +42,7 @@ def ajouter(m, numero, fin=False, nb_pieces_suiv=NB_PIECES_MAX):
     """Ajoute une transition repérée par `numero` (r = numero, plans de s = numero,
     plans de s' = numero + 100)."""
     suivante = None if fin else position(numero + 100, nb_pieces_suiv)
-    m.stocker_en_memoire(float(numero), 0.5, position(numero), decision(), suivante, True)
+    m.stocker_en_memoire(float(numero), 0.5, position(numero), decision(), suivante)
 
 
 def tout(m):
@@ -81,7 +81,7 @@ def test_compteurs_avant_que_la_memoire_soit_pleine():
 
 def test_stockage_d_une_transition():
     m = memoire()
-    m.stocker_en_memoire(0.7, 1.0, position(3), decision(chess.KNIGHT, chess.G1, 21), position(103), True)
+    m.stocker_en_memoire(0.7, 1.0, position(3), decision(chess.KNIGHT, chess.G1, 21), position(103))
 
     assert m.memoire_r[0] == pytest.approx(0.7)
     assert m.memoire_c[0] == 1.0
