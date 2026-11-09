@@ -84,4 +84,3 @@ class Environnement:
                 self.phi = self.evaluateur.potentiel(self.echiquier, self.couleur)
                 r_t = self.gamma * self.phi - phi_avant
         return self.echiquier.copy(), r_t, c_t, fin
-
