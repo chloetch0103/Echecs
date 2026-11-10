@@ -32,6 +32,16 @@ class AdversaireStockFish(Adversaire):
         return self.moteur.play(echequier, chess.engine.Limit(self.temps_coup)).move
 
 
+class AdversaireAleatoire(Adversaire):
+    def __init__(self, gen: np.random.Generator):
+        self.gen = gen
+
+    def jouer(self, echiquier: chess.Board):
+        coups_legaux = list(echiquier.legal_moves)
+        indice_aleatoire = self.gen.integers(0, len(coups_legaux))
+        return coups_legaux[indice_aleatoire]
+
+
 class Evaluateur(ABC):
     @abstractmethod
     def potentiel(self, echiquier: chess.Board, couleur):
