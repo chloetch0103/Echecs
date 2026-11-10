@@ -1,0 +1,60 @@
+# Configuration de base - Échecs multi-agents
+
+experience:
+  nom: base
+  graine: 42                    # graine aléatoire
+
+valeurs_pieces:                 # suivi du matériel et potentiel de repli
+  soldat: 1
+  cavalier: 3.25
+  fou: 3
+  tour: 5
+  reine: 9
+
+recompense:
+  gamma: 0.99                   # facteur d'actualisation gamma
+  potentiel: materiel          # "stockfish" (évaluation VND) ou "materiel" (bilan matériel)
+
+stockfish:
+  chemin: null                   # chemin vers l'exécutable ; null = lu dans la variable STOCKFISH_PATH
+  actif: false                   # Si false l'adversaire et l'évaluateur sont fait sans moteur stockfish
+  niveau_initial: 0              # Skill Level de l'adversaire, de 0 à 20
+  temps_coup: 0.05               # secondes de réflexion de l'adversaire par coup - à ajuster
+  temps_analyse: 0.02            # secondes d'analyse pour calculer le potentiel phi - à ajuster
+  curriculum:
+    actif: true
+    pas_niveau: 1               # de combien le niveau monte à chaque palier
+    seuil_montee: 0.0           # résultat moyen (z) à dépasser pour monter d'un niveau - à ajuster
+    fenetre: 100                # nombre de parties sur lesquelles on mesure le résultat moyen z
+
+contrainte:
+  lagrangien:
+    actif: false
+    seuil_danger: 5             # budget de danger d
+    eta: 0.01                   # pas de mise à jour de lambda - à ajuster
+    lambda_initial: 0.0
+  bouclier:
+    actif: false
+    profondeur: 1               # 1 = pas de mat au coup suivant, 2 = pas de mat en 2 coups
+
+agents:
+  reseau:
+    couches_cachees: [32] # à ajuster
+    taux_apprentissage: 0.0001
+  exploration:                  # epsilon-greedy : probabilité de jouer un coup sûr au hasard
+    epsilon_initial: 1.0
+    epsilon_final: 0.05
+    parties_decroissance: 100
+
+entrainement:
+  nb_parties: 20
+  taille_memoire: 5000        # nombre de transitions gardées en mémoire
+  debut_apprentissage: 500     # après combien de parties, on commence à tirer en mémoire pour l'apprentissage
+  taille_lot: 64
+  frequence_cible: 1000         # nombre de mises à jour des réseaux entre deux copies vers le réseau cible
+  frequence_sauvegarde: 20     # parties entre deux sauvegardes
+
+journal:
+  dossier: runs
+  csv_file_name: journal.csv
+  frequence: 10                 # parties entre deux écritures (retour, échecs subis, lambda, niveau adverse)
