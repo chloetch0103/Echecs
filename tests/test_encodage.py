@@ -20,7 +20,11 @@ from echecs_ma.env.encodage import (
 # Indices des plans, pour rendre les tests lisibles
 NOS_PIECES = {t: t - 1 for t in chess.PIECE_TYPES}           # soldat 0, ..., roi 5
 PIECES_ADVERSES = {t: t + 5 for t in chess.PIECE_TYPES}      # soldat 6, ..., roi 11
-PRISE_EN_PASSANT, ROQUES, REGLE_50, REPETITION, PIECE_CONCERNEE = 12, slice(13, 17), 17, 18, 19
+PRISE_EN_PASSANT, ROQUES, DEMI_COUPS = 12, slice(13, 17), 17
+VUE_2_FOIS, VUE_3_FOIS, VUE_4_FOIS = 18, 19, 20   # position actuelle vue (au moins) 2, 3, 4 fois
+REPETITIONS = [VUE_2_FOIS, VUE_3_FOIS, VUE_4_FOIS]
+PIECE_CONCERNEE = NB_PLANS               # toujours le dernier plan de l'entrée
+MAX_DEMI_COUPS = 150    # règle des 75 coups : la partie s'arrête d'elle-même à 150 demi-coups
 
 
 def masque(fen, case, couleur=chess.WHITE):
@@ -100,26 +104,97 @@ def test_droits_de_roque_vus_des_noirs():
     assert [plan[0, 0] for plan in roques] == [0, 1, 1, 0]
 
 
-@pytest.mark.parametrize("demi_coups, attendu", [(0, 0), (50, 50), (100, 100), (130, 100)])
-def test_regle_des_50_coups(demi_coups, attendu):
+@pytest.mark.parametrize("demi_coups, attendu", [(0, 0), (50, 50), (100, 100), (130, 130), (150, 150), (170, 150)])
+def test_compteur_de_demi_coups(demi_coups, attendu):
+    # Valeur brute, plafonnée à 150 : au-delà de 100, le réseau doit encore voir le compteur avancer
     echiquier = chess.Board(f"4k3/8/8/8/8/8/8/4K2R w - - {demi_coups} 80")
     plans = encoder_echiquier(echiquier, chess.WHITE)
-    assert (plans[REGLE_50] == attendu).all()
+    assert (plans[DEMI_COUPS] == attendu).all()
 
 
-def test_repetition():
+def test_compteur_tient_dans_un_uint8():
+    # Le plafond doit rester sous 255, sinon le stockage en uint8 de la mémoire déborderait
+    plans = encoder_echiquier(chess.Board("4k3/8/8/8/8/8/8/4K2R w - - 300 200"), chess.WHITE)
+    assert plans[DEMI_COUPS].max() == MAX_DEMI_COUPS
+
+
+ALLER_RETOUR = ["g1f3", "g8f6", "f3g1", "f6g8"]     # les cavaliers sortent et rentrent : retour au départ
+
+
+def apres_allers_retours(n):
+    """Position initiale après n allers-retours des cavaliers : elle est apparue n + 1 fois."""
     echiquier = chess.Board()
-    assert encoder_echiquier(echiquier, chess.WHITE)[REPETITION].sum() == 0
-    # Les cavaliers sortent puis rentrent : retour à la position initiale
-    for c in ["g1f3", "g8f6", "f3g1", "f6g8"]:
+    for _ in range(n):
+        for c in ALLER_RETOUR:
+            echiquier.push_uci(c)
+    return echiquier
+
+
+def plans_repetition(echiquier, couleur=chess.WHITE):
+    """Les trois plans de répétition : vue au moins 2, 3 et 4 fois."""
+    return encoder_echiquier(echiquier, couleur)[REPETITIONS]
+
+
+@pytest.mark.parametrize("allers_retours, attendu", [
+    (0, [0, 0, 0]),     # première apparition
+    (1, [1, 0, 0]),     # 2e apparition : déjà vue une fois
+    (2, [1, 1, 0]),     # 3e apparition
+    (3, [1, 1, 1]),     # 4e : un retour de plus et la quintuple répétition termine la partie
+    (4, [1, 1, 1]),     # 5e : « au moins » 4 fois, le plan reste à 1
+])
+def test_plans_de_repetition(allers_retours, attendu):
+    plans = plans_repetition(apres_allers_retours(allers_retours))
+    for plan, valeur in zip(plans, attendu, strict=True):
+        assert (plan == valeur).all()
+
+
+def test_nombre_de_passages_lisible():
+    # Les trois plans ensemble donnent le nombre exact de passages précédents (0 à 3) : c'est leur somme
+    for n in range(4):
+        plans = plans_repetition(apres_allers_retours(n))
+        assert plans[:, 0, 0].sum() == n
+
+
+def test_repetition_seulement_pour_la_position_actuelle():
+    # Après 3 allers-retours puis un coup nouveau, la position actuelle n'a jamais été vue
+    echiquier = apres_allers_retours(3)
+    echiquier.push_uci("e2e4")
+    assert plans_repetition(echiquier).sum() == 0
+
+
+def test_repetition_a_mi_chemin_d_un_aller_retour():
+    # Après g1f3 g8f6, au 3e passage : cette position-là est vue pour la 3e fois
+    echiquier = apres_allers_retours(2)
+    echiquier.push_uci("g1f3")
+    echiquier.push_uci("g8f6")
+    plans = plans_repetition(echiquier)
+    assert (plans[0] == 1).all() and (plans[1] == 1).all() and (plans[2] == 0).all()
+
+
+def test_repetition_vue_des_noirs():
+    # La répétition ne dépend pas du point de vue : mêmes plans pour les Noirs
+    echiquier = apres_allers_retours(3)
+    for c in ["g1f3", "g8f6", "f3g1"]:                         # aux Noirs de jouer, 4e passage
         echiquier.push_uci(c)
-    assert (encoder_echiquier(echiquier, chess.WHITE)[REPETITION] == 1).all()
+    blancs = plans_repetition(echiquier, chess.WHITE)
+    noirs = plans_repetition(echiquier, chess.BLACK)
+    np.testing.assert_array_equal(blancs, noirs)
+    assert (noirs == 1).all()
+
+
+def test_plans_de_repetition_binaires_et_emboites():
+    for n in range(5):
+        vue_2, vue_3, vue_4 = plans_repetition(apres_allers_retours(n))
+        for plan in (vue_2, vue_3, vue_4):
+            assert set(np.unique(plan)) <= {0, 1}
+        assert (vue_4 <= vue_3).all() and (vue_3 <= vue_2).all()   # vue 4 fois ⇒ 3 fois ⇒ 2 fois
 
 
 def test_position_ne_depend_pas_de_la_piece():
-    # Les 19 plans ne contiennent plus la pièce : une seule position, un seul encodage
+    # Les plans de position ne contiennent pas la pièce : une seule position, un seul encodage
     plans = encoder_echiquier(chess.Board(), chess.WHITE)
-    assert plans.shape[0] == NB_PLANS == 19
+    assert plans.shape[0] == NB_PLANS
+    assert NB_PLANS_ENTREE == NB_PLANS + 1                   # + le plan de la pièce concernée
 
 
 # =============================================================================
@@ -133,7 +208,7 @@ def entree(fen_ou_echiquier, case, couleur=chess.WHITE):
 
 def test_entree_forme_et_type():
     x = entree(chess.STARTING_FEN, chess.E2)
-    assert x.shape == (NB_PLANS_ENTREE, 8, 8) == (20, 8, 8)
+    assert x.shape == (NB_PLANS_ENTREE, 8, 8)
     assert x.dtype == np.float32
 
 
@@ -150,19 +225,27 @@ def test_plan_de_la_piece_avec_miroir():
     assert x[PIECE_CONCERNEE][0, 6] == 1
 
 
-def test_les_19_premiers_plans_sont_recopies():
+def test_les_plans_de_position_sont_recopies():
     # Hors normalisation du plan 17, l'entrée reprend exactement la position
     echiquier = chess.Board("r3k2r/pppq1ppp/2np1n2/2b1p1B1/2B1P1b1/2NP1N2/PPPQ1PPP/R3K2R w KQkq - 6 10")
     plans = encoder_echiquier(echiquier, chess.WHITE)
     x = ajouter_position_aux_plans(plans, chess.E1, chess.WHITE)
-    autres = [k for k in range(NB_PLANS) if k != REGLE_50]
+    autres = [k for k in range(NB_PLANS) if k != DEMI_COUPS]
     np.testing.assert_array_equal(x[autres], plans[autres])
 
 
-@pytest.mark.parametrize("demi_coups, attendu", [(0, 0.0), (37, 0.37), (100, 1.0), (130, 1.0)])
-def test_regle_des_50_coups_normalisee(demi_coups, attendu):
+@pytest.mark.parametrize("demi_coups, attendu", [(0, 0.0), (30, 0.2), (75, 0.5), (100, 2 / 3), (150, 1.0),
+                                                 (170, 1.0)])
+def test_compteur_de_demi_coups_normalise(demi_coups, attendu):
+    # Divisé par 150 : vaut 1 exactement quand la règle des 75 coups termine la partie
     x = entree(f"4k3/8/8/8/8/8/8/4K2R w - - {demi_coups} 80", chess.E1)
-    np.testing.assert_allclose(x[REGLE_50], attendu, rtol=1e-6)
+    np.testing.assert_allclose(x[DEMI_COUPS], attendu, rtol=1e-6)
+
+
+def test_compteur_normalise_toujours_entre_0_et_1():
+    for demi_coups in range(0, 200, 7):
+        x = entree(f"4k3/8/8/8/8/8/8/4K2R w - - {demi_coups} 120", chess.E1)
+        assert 0.0 <= x[DEMI_COUPS].min() and x[DEMI_COUPS].max() <= 1.0
 
 
 def test_la_position_stockee_n_est_pas_modifiee():
@@ -171,6 +254,13 @@ def test_la_position_stockee_n_est_pas_modifiee():
     copie = plans.copy()
     ajouter_position_aux_plans(plans, chess.E1, chess.WHITE)
     np.testing.assert_array_equal(plans, copie)
+
+
+def test_plans_de_repetition_recopies_dans_l_entree():
+    # Les plans de répétition passent tels quels dans l'entrée, sans normalisation
+    x = entree(apres_allers_retours(2), chess.E2)
+    assert (x[VUE_2_FOIS] == 1).all() and (x[VUE_3_FOIS] == 1).all() and (x[VUE_4_FOIS] == 0).all()
+    assert x[PIECE_CONCERNEE].sum() == 1
 
 
 def test_deux_soldats_ont_des_entrees_differentes():
@@ -451,3 +541,37 @@ def test_action_refuse_les_valeurs_hors_bornes(case_depart, indice):
 def test_action_accepte_les_bornes():
     Action(chess.PAWN, 0, 0)
     Action(chess.PAWN, 63, NB_SORTIES - 1)
+
+
+# =============================================================================
+# ajouter_positions_aux_plans_lot : identique à la version une par une
+# =============================================================================
+
+@pytest.mark.parametrize("fen", POSITIONS_VARIEES)
+def test_version_lot_identique(fen):
+    from echecs_ma.env.encodage import ajouter_positions_aux_plans_lot
+    echiquier = chess.Board(fen)
+    couleur = echiquier.turn
+    plans = encoder_echiquier(echiquier, couleur)
+    cases = nos_pieces(echiquier)
+    lot = ajouter_positions_aux_plans_lot(np.repeat(plans[None], len(cases), axis=0), cases, [couleur] * len(cases))
+    assert lot.dtype == np.float32
+    for k, case in enumerate(cases):
+        np.testing.assert_array_equal(lot[k], ajouter_position_aux_plans(plans, case, couleur))
+
+
+@pytest.mark.parametrize("demi_coups", [0, 37, 100, 149, 150])
+def test_version_lot_meme_normalisation_du_compteur(demi_coups):
+    # La version par lot doit diviser par 150 elle aussi (sinon apprentissage et arbitre divergent)
+    from echecs_ma.env.encodage import ajouter_positions_aux_plans_lot
+    plans = encoder_echiquier(chess.Board(f"4k3/8/8/8/8/8/8/4K2R w - - {demi_coups} 80"), chess.WHITE)
+    lot = ajouter_positions_aux_plans_lot(plans[None], [chess.E1], [chess.WHITE])
+    np.testing.assert_allclose(lot[0, DEMI_COUPS], demi_coups / MAX_DEMI_COUPS, rtol=1e-6)
+
+
+def test_version_lot_melange_les_couleurs():
+    from echecs_ma.env.encodage import ajouter_positions_aux_plans_lot
+    plans = np.zeros((2, NB_PLANS, 8, 8), dtype=np.uint8)
+    lot = ajouter_positions_aux_plans_lot(plans, [chess.E2, chess.E7], [chess.WHITE, chess.BLACK])
+    assert lot[0, PIECE_CONCERNEE, 1, 4] == 1 and lot[1, PIECE_CONCERNEE, 1, 4] == 1   # même place grâce au miroir
+    assert lot[:, PIECE_CONCERNEE].sum() == 2

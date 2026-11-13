@@ -2,7 +2,7 @@ import argparse
 import csv
 import os
 import time
-from collections import deque
+from collections import Counter, deque
 from contextlib import nullcontext
 from copy import deepcopy
 from datetime import datetime
@@ -19,11 +19,23 @@ from torch import optim
 from echecs_ma.agents.arbitre import Arbitre
 from echecs_ma.agents.reseaux import Reseau
 from echecs_ma.entrainement.apprentissage import apprentissage
-from echecs_ma.entrainement.boucle import jouer_partie_complete
+from echecs_ma.entrainement.boucle import RaisonFinPartie, jouer_partie_complete
 from echecs_ma.entrainement.fonctions_utiles import calcul_epsilon, calcul_lambda, decision_curriculum
 from echecs_ma.entrainement.memoire import Memoire
 from echecs_ma.env.adversaire import AdversaireAleatoire, AdversaireStockFish, EvaluateurMateriel, EvaluateurStockfish
 from echecs_ma.env.environnement import Environnement
+
+# Colonnes du journal (une ligne toutes les `journal.frequence` parties).
+# Les colonnes fin_* sont construites à partir de l'énumération
+# donne toujours l'ordre de déclaration, donc en-tête et valeurs restent alignés.
+COLONNES_JOURNAL = ["parties", "z_moyen", "echecs_subis", "lambda", "niveau", "epsilon", "erreur_r", "erreur_c",
+                    "pourcentage_victoire", "pourcentage_nulle", "pourcentage_defaite", "longueur_moy_partie",
+                    "duree", "bilan_mat_moy"]
+COLONNES_FIN = [f"fin_{raison.name.lower()}" for raison in RaisonFinPartie]
+
+# Colonnes du fichier par partie (une ligne par partie, aucune agrégation)
+COLONNES_PARTIES = ["partie", "couleur", "z", "raison_fin", "nb_coups", "bilan_mat", "echecs_subis", "epsilon",
+                    "niveau"]
 
 
 def lecture_config(path):
@@ -61,6 +73,7 @@ class Entrainement:
         self.frequence_sauvegarde = config["entrainement"]["frequence_sauvegarde"]
         self.dossier_journal = config["journal"]["dossier"]
         self.csv_journal = config["journal"]["csv_file_name"]
+        self.csv_parties = config["journal"].get("csv_parties", "parties.csv")
         self.frequence = config["journal"]["frequence"]
         self.stockfish_actif = config["stockfish"]["actif"]
         if self.stockfish_actif or self.potentiel == "stockfish":
@@ -123,13 +136,16 @@ class Entrainement:
     def lancer_entrainement(self):
         # Initialisation de variables de la boucle
         nb_corr = 0  # nombre de fois le réseau principal a été corrigé
-        erreurs_r = deque(maxlen=self.fenetre)
-        erreurs_c = deque(maxlen=self.fenetre)
+        # erreurs du bloc en cours (vidées à chaque écriture du journal)
+        erreurs_r = []
+        erreurs_c = []
         val_retour = deque(maxlen=self.fenetre)
         val_retour_journal = deque(maxlen=self.frequence)
         nb_echecs_subits = 0
         nb_checkpoints = 0
         nb_coups = 0
+        bilan_mat = 0
+        fins_du_bloc = Counter()  # RaisonFinPartie -> nombre de parties du bloc finies ainsi
 
         # Contexte moteurs stockfish
         contexte_moteur_ad = (
@@ -143,13 +159,14 @@ class Entrainement:
             else nullcontext(enter_result=None)
         )
 
-        with (open(self.chemin_journal / self.csv_journal, mode="a", newline="", encoding="utf-8") as j):
+        with (open(self.chemin_journal / self.csv_journal, mode="w", newline="", encoding="utf-8") as j,
+              open(self.chemin_journal / self.csv_parties, mode="w", newline="", encoding="utf-8") as p):
             writer = csv.writer(j)
+            writer_parties = csv.writer(p)
 
-            # Écriture de l'en-tête seulement si le fichier vient d'être créé
-            writer.writerow(["parties", "z_moyen", "echecs_subis", "lambda", "niveau", "epsilon", "erreur_r",
-                              "erreur_c", "pourcentage_victoire", "pourcentage_nulle", "pourcentage_defaite",
-                             "longueur_moy_partie", "duree"])
+            # En-têtes (chaque entraînement a son propre dossier, les fichiers sont neufs)
+            writer.writerow(COLONNES_JOURNAL + COLONNES_FIN)
+            writer_parties.writerow(COLONNES_PARTIES)
             with contexte_moteur_ad as moteur_stockfish_ad, contexte_moteur_eval as moteur_stockfish_eval:
                 # Création adversaire, évaluateur et environnement
                 if self.potentiel == "stockfish":
@@ -178,6 +195,12 @@ class Entrainement:
                     val_retour_journal.append(stat_partie.z)
                     nb_echecs_subits += stat_partie.nbr_echecs_subis
                     nb_coups += stat_partie.nbr_coups_joues
+                    bilan_mat += stat_partie.bilan_mat_fin_partie
+                    fins_du_bloc[stat_partie.raison_fin_partie] += 1
+                    writer_parties.writerow([n + 1, "blancs" if self.couleur else "noirs", stat_partie.z,
+                                             stat_partie.raison_fin_partie.name, stat_partie.nbr_coups_joues,
+                                             stat_partie.bilan_mat_fin_partie, stat_partie.nbr_echecs_subis,
+                                             self.epsilon, self.niveau_stockfish])
 
                     # on regarde si la mémoire est assez remplie pour faire un tirage
                     if self.memoire.taille_actuelle_memoire >= self.debut_apprentissage:
@@ -200,17 +223,25 @@ class Entrainement:
                     if (n+1)%self.frequence == 0:
                         fin = time.perf_counter()
                         nb_victoires = val_retour_journal.count(1)
-                        nb_nulles = val_retour_journal.count(0)
                         nb_defaites = val_retour_journal.count(-1)
+                        # tout le reste est une nulle, y compris une partie coupée (z non entier)
+                        nb_nulles = len(val_retour_journal) - nb_victoires - nb_defaites
                         err_r_moy = sum(erreurs_r)/len(erreurs_r) if len(erreurs_r) > 0 else 0
                         err_c_moy = sum(erreurs_c)/len(erreurs_c) if len(erreurs_c) > 0 else 0
+                        proportions_fins = [fins_du_bloc[raison] / self.frequence for raison in RaisonFinPartie]
                         writer.writerow([n+1, retour_moyen_frequence, nb_echecs_subits/self.frequence, self.lambda_,
                                          self.niveau_stockfish, self.epsilon, err_r_moy,  err_c_moy, nb_victoires/self.frequence,
                                         nb_nulles/self.frequence, nb_defaites/self.frequence, nb_coups/self.frequence,
-                                         fin-debut])
+                                         fin-debut, bilan_mat/self.frequence] + proportions_fins)
+                        j.flush()  # le journal reste lisible par analyser.py pendant l'entraînement
+                        p.flush()
                         debut = time.perf_counter()
                         nb_echecs_subits = 0
                         nb_coups = 0
+                        bilan_mat = 0
+                        fins_du_bloc.clear()
+                        erreurs_r.clear()
+                        erreurs_c.clear()
 
                     # On regarde si l'adversaire doit monter en niveau
                     if decision_curriculum(self.etat_curriculum, retour_moyen_fenetre, self.seuil_montee_curriculum, len(val_retour),

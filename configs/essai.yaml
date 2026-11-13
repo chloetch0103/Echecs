@@ -29,9 +29,9 @@ stockfish:
 
 contrainte:
   lagrangien:
-    actif: false
-    seuil_danger: 5             # budget de danger d
-    eta: 0.01                   # pas de mise à jour de lambda - à ajuster
+    actif: actif
+    seuil_danger: 13             # budget de danger d - à ajuster
+    eta: 0.007                   # pas de mise à jour de lambda - à ajuster
     lambda_initial: 0.0
   bouclier:
     actif: false
@@ -47,9 +47,9 @@ agents:
     parties_decroissance: 100
 
 entrainement:
-  nb_parties: 20
-  taille_memoire: 5000        # nombre de transitions gardées en mémoire
-  debut_apprentissage: 500     # après combien de parties, on commence à tirer en mémoire pour l'apprentissage
+  nb_parties: 1000
+  taille_memoire: 500        # nombre de transitions gardées en mémoire
+  debut_apprentissage: 500     # après combien de transitions, on commence à tirer en mémoire pour l'apprentissage
   taille_lot: 64
   frequence_cible: 1000         # nombre de mises à jour des réseaux entre deux copies vers le réseau cible
   frequence_sauvegarde: 20     # parties entre deux sauvegardes
