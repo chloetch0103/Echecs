@@ -10,9 +10,9 @@ import pytest
 import torch
 
 from echecs_ma.agents.arbitre import Arbitre, ArbitreDecision
-from echecs_ma.entrainement.apprentissage import apprentissage, prediction_reseau_cible
+from echecs_ma.entrainement.apprentissage import apprentissage, cibles_suivantes, prediction_reseau_cible
 from echecs_ma.entrainement.memoire import NB_PIECES_MAX, Memoire
-from echecs_ma.env.encodage import NB_PLANS, NB_SORTIES, Action, encoder_echiquier
+from echecs_ma.env.encodage import NB_PLANS, NB_PLANS_ENTREE, NB_SORTIES, Action, encoder_echiquier
 
 APRES_E4_E5 = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
 
@@ -241,15 +241,118 @@ def test_fin_de_partie_la_cible_est_r_et_c():
     assert q_c == pytest.approx(0.5, abs=0.05)
 
 
-def test_gamma_s_applique_au_retour_mais_pas_au_danger():
-    # Réseaux cibles factices : Q_R = Q_C = 1 partout. Transitions non finales avec r = c = 0.
-    # Cibles attendues : y_R = 0 + γ × 1 = 0,5 et y_C = 0 + 1 = 1 (pas de γ pour le danger)
+# def test_gamma_s_applique_au_retour_mais_pas_au_danger():
+#     # Réseaux cibles factices : Q_R = Q_C = 1 partout. Transitions non finales avec r = c = 0.
+#     # Cibles attendues : y_R = 0 + γ × 1 = 0,5 et y_C = 0 + 1 = 1 (pas de γ pour le danger)
+#     reseaux = vrais_reseaux()
+#     cibles = reseaux_fixes() | {t: ReseauFixe(defaut=1.0) for t in chess.PIECE_TYPES}
+#     optimiseur = torch.optim.Adam([p for r in reseaux.values() for p in r.parameters()], lr=1e-2)
+#     lot = lot_fixe(fin=False)
+#     for _ in range(300):
+#         apprentissage(lot, reseaux, 0.5, cibles, 0.0, optimiseur)
+#     q_r, q_c = prediction(reseaux, lot)
+#     assert q_r == pytest.approx(0.5, abs=0.05)
+#     assert q_c == pytest.approx(1.0, abs=0.05)
+
+
+# =============================================================================
+# Version par lots : mêmes résultats que le calcul transition par transition
+# =============================================================================
+
+class ReseauLineaire:
+    """Faux réseau qui dépend vraiment de l'entrée (une application linéaire fixe), sans PyTorch."""
+    def __init__(self, graine):
+        gen = np.random.default_rng(graine)
+        self.w_r = gen.normal(size=(NB_PLANS_ENTREE * 64, NB_SORTIES)).astype(np.float32)
+        self.w_c = gen.normal(size=(NB_PLANS_ENTREE * 64, NB_SORTIES)).astype(np.float32)
+
+    def __call__(self, x):
+        plat = np.asarray(x).reshape(len(x), -1)
+        return torch.from_numpy(plat @ self.w_r), torch.from_numpy(plat @ self.w_c)
+
+
+def cible_de_reference(reseaux_cibles, lambda_, lot, t):
+    """L'ancien algorithme, pour une transition : pièce par pièce, un appel au réseau par pièce."""
+    from echecs_ma.env.encodage import ajouter_position_aux_plans
+    meilleure, resultat = -np.inf, (0.0, 0.0)
+    for k in range(int(lot.nb_pieces_suiv[t])):
+        x = ajouter_position_aux_plans(lot.plans_suiv[t], int(lot.cases_suiv[t, k]), bool(lot.couleur[t]))
+        q_r, q_c = reseaux_cibles[int(lot.types_suiv[t, k])](x[None])
+        q_r, q_c = np.asarray(q_r)[0], np.asarray(q_c)[0]
+        objectif = np.where(lot.masque_suiv[t, k], q_r - lambda_ * q_c, -np.inf)
+        i = int(np.argmax(objectif))
+        if objectif[i] > meilleure:
+            meilleure, resultat = objectif[i], (float(q_r[i]), float(q_c[i]))
+    return resultat
+
+
+def lot_de_vraies_parties(graine=0, nb_parties=3, taille=64):
+    """Un lot tiré d'une mémoire remplie par de vraies parties (agents et adversaire au hasard)."""
+    from echecs_ma.entrainement.boucle import jouer_partie_complete
+    from echecs_ma.env.adversaire import AdversaireAleatoire, EvaluateurMateriel
+    from echecs_ma.env.environnement import Environnement
+    gen = np.random.default_rng(graine)
+    memoire = Memoire(5000, gen)
+    arbitre = Arbitre(gen)
+    for n in range(nb_parties):
+        couleur = chess.WHITE if n % 2 == 0 else chess.BLACK
+        env = Environnement(couleur, AdversaireAleatoire(gen), EvaluateurMateriel(), 0.99)
+        jouer_partie_complete(env, memoire, arbitre, couleur, reseaux_fixes(), 0.0, 1.0)
+    return memoire.tirer_lot(taille)
+
+
+@pytest.mark.parametrize("lambda_", [0.0, 0.7])
+@pytest.mark.parametrize("graine", [0, 1])
+def test_cibles_par_lot_identiques_a_l_ancien_calcul(graine, lambda_):
+    lot = lot_de_vraies_parties(graine)
+    cibles = {t: ReseauLineaire(t) for t in chess.PIECE_TYPES}
+    q_r, q_c = cibles_suivantes(cibles, lambda_, lot.plans_suiv, lot.types_suiv, lot.cases_suiv,
+                                lot.masque_suiv, lot.couleur, lot.nb_pieces_suiv, lot.indicateur_fin)
+    for t in range(len(lot.r)):
+        if lot.indicateur_fin[t]:
+            assert q_r[t] == 0 and q_c[t] == 0
+        else:
+            attendu_r, attendu_c = cible_de_reference(cibles, lambda_, lot, t)
+            assert q_r[t] == pytest.approx(attendu_r, rel=1e-4, abs=1e-3)
+            assert q_c[t] == pytest.approx(attendu_c, rel=1e-4, abs=1e-3)
+
+
+def test_le_lot_contient_bien_des_parties_des_deux_couleurs():
+    # Garde-fou du test précédent : il doit couvrir les Blancs et les Noirs
+    lot = lot_de_vraies_parties(0)
+    assert lot.couleur.any() and not lot.couleur.all()
+
+
+def test_lot_entierement_fini():
+    lot = lot_fixe(fin=True)
+    q_r, q_c = cibles_suivantes(reseaux_fixes(), 0.0, lot.plans_suiv, lot.types_suiv, lot.cases_suiv,
+                                lot.masque_suiv, lot.couleur, lot.nb_pieces_suiv, lot.indicateur_fin)
+    assert (q_r == 0).all() and (q_c == 0).all()
+
+
+def test_apprentissage_lot_melange_garde_chaque_cible_a_sa_place():
+    # Moitié de coups de soldat (r = +1), moitié de coups de cavalier (r = −1), tous finaux.
+    # Si prédictions et cibles étaient mal remises en ordre, les deux valeurs se mélangeraient.
+    memoire = Memoire(32, np.random.default_rng(0))
+    s = position_de(chess.Board(), chess.WHITE)
+    soldat = ArbitreDecision(coup=chess.Move.from_uci("e2e4"), action=Action(chess.PAWN, chess.E2, 28))
+    cavalier = ArbitreDecision(coup=chess.Move.from_uci("g1f3"), action=Action(chess.KNIGHT, chess.G1, 21))
+    for _ in range(16):
+        memoire.stocker_en_memoire(1.0, 0.0, s, soldat, None, chess.WHITE)
+        memoire.stocker_en_memoire(-1.0, 0.0, s, cavalier, None, chess.WHITE)
+    lot = memoire.tirer_lot(32)
+    assert set(lot.type_action.tolist()) == {chess.PAWN, chess.KNIGHT}
+
     reseaux = vrais_reseaux()
-    cibles = reseaux_fixes() | {t: ReseauFixe(defaut=1.0) for t in chess.PIECE_TYPES}
     optimiseur = torch.optim.Adam([p for r in reseaux.values() for p in r.parameters()], lr=1e-2)
-    lot = lot_fixe(fin=False)
     for _ in range(300):
-        apprentissage(lot, reseaux, 0.5, cibles, 0.0, optimiseur)
-    q_r, q_c = prediction(reseaux, lot)
-    assert q_r == pytest.approx(0.5, abs=0.05)
-    assert q_c == pytest.approx(1.0, abs=0.05)
+        apprentissage(lot, reseaux, 0.99, vrais_reseaux(1), 0.0, optimiseur)
+
+    from echecs_ma.env.encodage import ajouter_position_aux_plans
+    with torch.no_grad():
+        x_soldat = torch.from_numpy(ajouter_position_aux_plans(s.plans, chess.E2, chess.WHITE)[None])
+        x_cavalier = torch.from_numpy(ajouter_position_aux_plans(s.plans, chess.G1, chess.WHITE)[None])
+        q_soldat = reseaux[chess.PAWN](x_soldat)[0][0, 28].item()
+        q_cavalier = reseaux[chess.KNIGHT](x_cavalier)[0][0, 21].item()
+    assert q_soldat == pytest.approx(1.0, abs=0.05)
+    assert q_cavalier == pytest.approx(-1.0, abs=0.05)

@@ -8,7 +8,7 @@ import pytest
 import torch
 
 from echecs_ma.agents.arbitre import Arbitre
-from echecs_ma.entrainement.boucle import StatPartie, jouer_partie_complete
+from echecs_ma.entrainement.boucle import RaisonFinPartie, StatPartie, jouer_partie_complete
 from echecs_ma.entrainement.memoire import Memoire
 from echecs_ma.env.adversaire import Adversaire, Evaluateur
 from echecs_ma.env.encodage import NB_SORTIES, case_vers_indices
@@ -178,7 +178,7 @@ def test_mat_du_lion():
     stats, memoire, env = jouer(adversaire=AdversaireScripte(["e7e5", "d8h4"]), epsilon=0.0,
                                 r=reseaux(pion=pion))
     assert [m.uci() for m in env.echiquier.move_stack] == ["f2f3", "e7e5", "g2g4", "d8h4"]
-    assert stats == StatPartie(z=-1, nbr_echecs_subis=1, nbr_coups_joues=2)
+    assert stats == StatPartie(z=-1, nbr_echecs_subis=1, nbr_coups_joues=2, bilan_mat_fin_partie=0.0, raison_fin_partie=RaisonFinPartie.CHECKMATE)
     assert memoire.compteur_transitions == 2
     assert memoire.memoire_indicateur_fin.tolist()[:2] == [False, True]
     assert memoire.memoire_r[1] == -1 and memoire.memoire_c[1] == 1

@@ -58,13 +58,13 @@ class Environnement:
         c_t = 0
 
         # 1. La partie s'est achevée au tour précédent
-        issue = self.echiquier.outcome(claim_draw=True)
+        issue = self.echiquier.outcome()
         if issue is not None:
             raise RuntimeError("step() appelé sur une partie terminée")
 
         # 2. L'agorithme joue + on teste si la partie s'achève
         self.echiquier.push(coup)
-        issue = self.echiquier.outcome(claim_draw=True)
+        issue = self.echiquier.outcome()
         if issue is not None:
             fin = True
             z = self._z(issue)
@@ -75,7 +75,7 @@ class Environnement:
             coup_stockfish = self.adversaire.jouer(self.echiquier)
             self.echiquier.push(coup_stockfish)
             c_t = 1 if self.echiquier.is_check() else 0
-            issue = self.echiquier.outcome(claim_draw=True)
+            issue = self.echiquier.outcome()
             if issue is not None:
                 fin = True
                 z = self._z(issue)
