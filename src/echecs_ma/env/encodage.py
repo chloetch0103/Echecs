@@ -1,13 +1,15 @@
 """
 Encodage de l'échiquier pour le réseau de neurones, du point de vue de l'algorithme
-(nos pièces toujours en bas). 19 plans 8x8 (le 20e est rajouté par la suite) :
+(nos pièces toujours en bas). 21 plans 8x8 (le 22e est rajouté par la suite) :
   0-5 : nos pièces
   6-11 : pièces adverses
   12 : case de prise en passant
   13-16 : droits de roque (nous petit/grand, adversaire petit/grand)
-  17 : compteur règle des 50 coups
+  17 : compteur règle des 75 coups
   18 : 1 partout si la position est déjà apparue au moins une fois avant, sinon 0
-  19 : ajouté par la suite avec la fonction ajouter_position_aux_plans avec normalisation
+  19 : 1 partout si la position est déjà apparue au moins deux fois avant, sinon 0
+  20 : 1 partout si la position est déjà apparue au moins trois fois avant, sinon 0
+  21 : ajouté par la suite avec la fonction ajouter_position_aux_plans avec normalisation
   du plan 17
 
 Encodage de la sortie des réseaux :
@@ -21,7 +23,7 @@ from dataclasses import dataclass
 import chess
 import numpy as np
 
-NB_PLANS = 19
+NB_PLANS = 21
 NB_PLANS_ENTREE = NB_PLANS + 1
 NB_SORTIES = 88
 NB_CASES = 64
@@ -88,11 +90,17 @@ def encoder_echiquier(echiquier: chess.Board, couleur: bool) -> np.ndarray:
     plans[15] = float(echiquier.has_kingside_castling_rights(couleur_adv))
     plans[16] = float(echiquier.has_queenside_castling_rights(couleur_adv))
 
-    # 4. Règle des 50 coups (plan constant normalisé (100 demi-coups = nulle))
-    plans[17] = min(echiquier.halfmove_clock, 100)
+    # 4. Règle des 75 coups (plan constant normalisé (150 demi-coups = nulle))
+    plans[17] = min(echiquier.halfmove_clock, 150)
 
-    # 5. Répétition de positions
-    plans[18] = np.int8(echiquier.is_repetition(2))
+    # 5. Double répétition de positions
+    plans[18] = np.uint8(echiquier.is_repetition(2))
+
+    # 6. Triple répétition de positions
+    plans[19] = np.uint8(echiquier.is_repetition(3))
+
+    # 7. Quadruple répétition de positions
+    plans[20] = np.uint8(echiquier.is_repetition(4))
 
     return plans
 
@@ -105,8 +113,8 @@ def ajouter_position_aux_plans(plans: np.ndarray, pos_depart: int, couleur: bool
     plans_complet[:NB_PLANS] = plans
     plans_complet[NB_PLANS] = plan
 
-    # Normalisation de la répétition des 50 coups (17e plan)
-    plans_complet[17] = plans_complet[17]/100
+    # Normalisation de la répétition des 75 coups (17e plan)
+    plans_complet[17] = plans_complet[17]/150
     return plans_complet
 
 
@@ -182,4 +190,26 @@ def move_to_action(echiquier: chess.Board, coup: chess.Move, couleur: bool) -> A
     return Action(type_piece=piece_t.piece_type, indice=indice, case_depart=case_depart)
 
 
+def ajouter_positions_aux_plans_lot(plans: np.ndarray, cases: np.ndarray, couleurs: np.ndarray) -> np.ndarray:
+    """
+    Version "lot" de ajouter_position_aux_plans, sans boucle Python.
+    :param plans: (N, NB_PLANS, 8, 8) plans de position
+    :param cases: (N,) case python-chess de la pièce concernée par chaque entrée
+    :param couleurs: (N,) couleur de l'algorithme pour chaque entrée
+    :return: (N, NB_PLANS_ENTREE, 8, 8) entrées du réseau, en float32, plan 17 normalisé
+    """
+    n = len(cases)
+    entrees = np.zeros((n, NB_PLANS_ENTREE, 8, 8), dtype=np.float32)
+    entrees[:, :NB_PLANS] = plans
+    entrees[:, 17] /= 150  # normalisation de la règle des 75 coups, comme ajouter_position_aux_plans
+
+    # Ligne et colonne de chaque case, avec le miroir vertical pour les Noirs
+    cases = np.asarray(cases, dtype=np.int64)
+    lignes = cases // 8
+    colonnes = cases % 8
+    lignes = np.where(np.asarray(couleurs, dtype=bool), lignes, 7 - lignes)
+
+    # Indexation avancée : un 1 dans le plan de la pièce de chaque entrée, en une seule opération
+    entrees[np.arange(n), NB_PLANS, lignes, colonnes] = 1
+    return entrees
 
